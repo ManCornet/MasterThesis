@@ -1,6 +1,4 @@
-<img src="assets/header_bilevel.gif"
-     width="800" 
-     height="300"/>
+
 <hr style="color:#096F7B;">
 <p align="center">
  <b style="font-size:25vw; font-weight:bold;">
@@ -9,8 +7,11 @@
  <b style="font-size:15vw;"> <i>The premises of a journey in search of equilibrium in the game between the network operator and its users </i>
  </b>
  <hr style="color:#096F7B;">
-   
-</p>
+ </p>
+<img src="assets/header_bilevel.gif"
+width="800" 
+height="300"/>
+
 <b>Description</b><br>
 Repository containing the code that is used in the context of my Master thesis "Exploring the impact of the energy transition on electricity distribution systems: the premises of a journey in search of equilibrium in the game between the network operator and its users"
 <br> 
