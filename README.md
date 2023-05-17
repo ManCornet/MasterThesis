@@ -30,9 +30,3 @@ Status `C:\Users\Administrator\.julia\environments\v1.8\Project.toml`
   [2ddba703] Juniper v0.9.1
   [2f354839] Pajarito v0.8.0
 ```
-
-<hr>
-<p align="center">
-<b style="font-size:30vw;">Julia dependencies</b>
-</p>
-<hr>
