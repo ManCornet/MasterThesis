@@ -7,11 +7,12 @@
  <b style="font-size:15vw;"> <i>The premises of a journey in search of equilibrium in the game between the network operator and its users </i>
  </b>
  <hr style="color:#096F7B;">
-
-<div style="text-align: center;"><img src="assets/header_bilevel.gif" width="500" height="300"" /></div>
+<p align="center">
+<img src="assets/header_bilevel.gif" width="500" height="300"/>
+ </p>
 <b>Description</b><br>
 Repository containing the code that is used in the context of my Master thesis "Exploring the impact of the energy transition on electricity distribution systems: the premises of a journey in search of equilibrium in the game between the network operator and its users"
- </p>
+</p>
 <br> 
 <b>Author</b><br> 
 <i>Manon Cornet</i>
