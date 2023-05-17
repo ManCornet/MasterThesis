@@ -9,7 +9,7 @@
  <hr style="color:#096F7B;">
  </p>
 <img src="assets/header_bilevel.gif"
-width="800" 
+width="1000" 
 height="300"/>
 
 <b>Description</b><br>
