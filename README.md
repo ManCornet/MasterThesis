@@ -8,7 +8,7 @@
  </b>
  <hr style="color:#096F7B;">
 <p align="center">
-<img src="assets/header_bilevel.gif" width="500" height="300"/>
+<img src="assets/header_bilevel.gif" width="500" height="250"/>
  </p>
 <b>Description</b><br>
 Repository containing the code that is used in the context of my Master thesis "Exploring the impact of the energy transition on electricity distribution systems: the premises of a journey in search of equilibrium in the game between the network operator and its users"
