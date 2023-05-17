@@ -4,7 +4,7 @@
 <hr style="color:#096F7B;">
 <p align="center">
  <b style="font-size:25vw; font-weight:bold;">
- Exploring the impact of the energy transition on electricity distribution systems 
+ Exploring the impact of the energy transition on electricity distribution systems: 
  </b><br>
  <b style="font-size:15vw;"> <i>The premises of a journey in search of equilibrium in the game between the network operator and its users </i>
  </b>
