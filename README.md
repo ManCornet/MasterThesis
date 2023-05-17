@@ -1,6 +1,6 @@
 <img src="assets/header_bilevel.gif"
      width="4000" 
-     height="100"/>
+     height="1000"/>
 <hr style="color:#096F7B;">
 <p align="center">
  <b style="font-size:25vw; font-weight:bold;">
