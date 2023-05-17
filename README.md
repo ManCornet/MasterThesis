@@ -1,5 +1,5 @@
 <img src="assets/header_bilevel.gif"
-     width="3000" 
+     width="1000" 
      height="250"/>
 <hr style="color:#096F7B;">
 <p align="center">
