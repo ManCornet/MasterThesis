@@ -1,20 +1,17 @@
-<img src="assets/header.gif" />
-<hr>
+<img src="assets/header.gif"
+     width="4000" 
+     height="100"/>
+<hr style="color:#096F7B;">
 <p align="center">
-<b style="font-size:30vw;"> Exploring the impact of the energy transition on electricity distribution systems</b>
-  <b style="font-size:20vw;"> The premises of a journey in search of equilibrium in the game between the network operator and its users </b>
+ <b style="font-size:2.5vw; color:#096F7B; font-weight:bold;">
+ Exploring the impact of the energy transition on electricity distribution systems</b>
+ <hr style="color:#096F7B;">
+ <b style="font-size:20vw;"> The premises of a journey in search of equilibrium in the game between the network operator and its users </b>
 </p>
-<hr>
+<b>Description</b><br>
 Repository containing the code that is used in the context of my Master thesis "Exploring the impact of the energy transition on electricity distribution systems: the premises of a journey in search of equilibrium in the game between the network operator and its users"
-<img src="assets/header.gif" />
-<hr>
-<p align="center">
-<b style="font-size:30vw;">Distribution network expansion planning</b>
-</p>
-<hr>
-
-Implementation based on
-<div class="csl-entry">Jabr, R. A. (2013). Polyhedral formulations and loop elimination constraints for distribution network expansion planning. <i>IEEE Transactions on Power Systems</i>, <i>28</i>(2), 1888–1897. https://doi.org/10.1109/TPWRS.2012.2230652</div>
+<b>Author</b><br><br> 
+<i>Manon Cornet</i>
 
 <hr>
 <p align="center">
