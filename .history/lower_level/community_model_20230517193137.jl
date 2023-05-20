@@ -20,7 +20,7 @@ eff_Bc=0.95
 eff_Bd=0.95
 
 
-COMMUNITY_SIZE=1                 # homes in the community
+COMMUNITY_SIZE=3                 # homes in the community
 PROFILES=range(1, length=COMMUNITY_SIZE) # must be <= 100
 
 # careful when feeders implemented
