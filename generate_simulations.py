@@ -50,16 +50,23 @@
 #       All the parameters you want to test and their corresponding values
 #                      can be initialized here in a list !
 #
-# Number of electrical lines [-]
-nb_elec_lines = [1, 10, 100]
 
-# Initial voltage of power station [MV]
-power_station_voltage = [23, 45, 19, 100]
+# Inclusion of EVs in load profiles
+EVs = [False, True]
+# Inclusion of HPs in load profiles
+HPs = [False, True]
+# Maximum PV capacity per load bus [MVA]
+MAX_PV_CAPACITY_PER_NODE = [0.4, 0.0, 0.8, 1.6]
+# Cost of the energy that is imported [k€/kWh]
+IMP_ELECTRICITY_ENRG_COST = [0.3, 0.6, 0.9]
+# Cost of the energy that is exported [k€/kWh]
+EXP_ELECTRICITY_ENRG_COST = [0.1, 0.2, 0.3]
+# DSO cost of the energy that is imported [k€/kWh]
+IMP_ELECTRICITY_DSO_COST = [0.1, 0.2, 0.3]
+# Grid connection cost [k€/kWh]
+GRID_CONNECTION_COST = [80, 120, 160]
 
-#
-# ...
-#
-#
+
 # ----------------------
 #    Script Properties
 # ----------------------
@@ -89,7 +96,8 @@ for l in nb_elec_lines:
     for ps in power_station_voltage:
 
         # Writting down new simulation test in command line in the script
-        script_file.write(f"Julia main.jl --elec_lines {l} --power_stations {ps} \n")
+        script_file.write(f"""julia --project --sysimage JuliaSysimage.so src/Bilevel/main.jl 
+                            --EV {l} --power_stations {ps} \n""")
 
 # Closing the script
 script_file.close()

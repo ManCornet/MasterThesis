@@ -89,7 +89,7 @@ df_line = DataFrames.DataFrame(XLSX.readtable(XLSX_FILE_PATH, "line"))
 df_cond = DataFrames.DataFrame(XLSX.readtable(XLSX_FILE_PATH, "conductor"))
 
 L_size = DataFrames.nrow(df_line)                                   # Number of lines in the network
-L = 1:L_size                                                   # Line set
+L = 1:L_size                                                        # Line set
 line_ends = [(df_line.from_bus[l], df_line.to_bus[l]) for l in L]   # Indices of the line extremities
 len_lines = convert(Vector{Float64}, df_line.length_km)             # Line lengths [km]
 
@@ -98,7 +98,7 @@ K = 1:K_size                   # Set of conductors
 MAX_CURRENT, line_cost, R, X, G, B, = process_conductors(df_cond, len_lines, L_size)
 
 N_size = DataFrames.nrow(df_bus)            # Number of buses in the network
-N = 1:N_size                           # Buses set
+N = 1:N_size                                # Buses set
 Ns_size = sum(df_bus.type .== "substation") # Number of substation buses
 Nu_size = sum(df_bus.type .== "user")       # Number of load nodes
 Ns = 1:Ns_size                              # Set of substation buses
