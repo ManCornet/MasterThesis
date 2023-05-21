@@ -28,9 +28,9 @@ MAX_VOLTAGE = 1.05  # [pu]
 
 # # DIRECTORIES
 
-root_dir = splitdir(@__DIR__)[1]
-profiles_data_dir = joinpath(root_dir, "Manchester_data", "LCT_profiles")
-network_data_dir = joinpath(root_dir, "network_models")
+root_dir = normpath(joinpath(@__FILE__,"..","..",".."))
+profiles_data_dir = joinpath(root_dir, "ManchesterData", "LCT_profiles")
+network_data_dir = joinpath(root_dir, "NetworkModels")
 
 XLSX_FILE_PATH = joinpath(network_data_dir, "network_Nahman_Peric_2S23H.xlsx")
 XLSX_SUMMER_LOAD_PATH = joinpath(profiles_data_dir, "Summer_Load_Profiles.xlsx")
