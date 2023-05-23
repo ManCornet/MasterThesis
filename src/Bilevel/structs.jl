@@ -11,7 +11,9 @@ end
 =#
 
 # All the structures required to put in argument of a model
-
+using LaTeXStrings
+using GraphRecipes, Graphs
+using Plots
 
 #------------------------------------------------------------------------------------------
 #                       Structure representing the topology of the network 
@@ -43,10 +45,8 @@ end
 #------------------------------------------------------------------------------------------
 
 struct Profile 
-    nb_time_steps::Int64            # [-] Number of time steps
+    time_serie::Vector{Float64}    # Apparent power profile [pu] 
     granularity::Int64              # [min] 
-    time_series::Vector{Float64}    # Apparent power profile [pu] 
-    cos_phi::Float64                # cos(phi)
 end
 
 #------------------------------------------------------------------------------------------
@@ -65,7 +65,7 @@ mutable struct PV
             throw(DomainError("[PV]: The max capa of a PV installation must be higher than 0")) 
         end
     
-        return new(capa_max, profile) 
+        return new(capa_max, profile, nothing, nothing) 
     end
 
 end
@@ -85,9 +85,10 @@ mutable struct User <: Bus
     V_magn::Union{Nothing, Float64}       #  in KV
     load_profile::Union{Nothing, Profile} 
     PV_installation::Union{Nothing, PV}   # 
-    
+    cos_phi::Float64                # cos(phi)
+
     function User(node::Node, V_limits::Union{Nothing, VLIM}) 
-        return new(node, V_limits, nothing, nothing, nothing) 
+        return new(node, V_limits, nothing, nothing, nothing, 0.9) 
     end
 end
 
@@ -173,7 +174,6 @@ mutable struct DistributionNetworkTopology
     edges::Vector{Edge} # contains the substation buses
 end
 
-
 function get_nb_load_bus(d::DistributionNetwork)
     return length(d.load_buses)
 end
@@ -188,6 +188,14 @@ end
 
 function get_nb_conductors(d::DistributionNetwork)
     return length(d.conductors)
+end
+
+function get_nb_nodes(t::DistributionNetworkTopology)
+    return length(t.nodes)
+end
+
+function get_nb_time_steps(p::Profile)
+    return length(p.time_serie)
 end
 
 

@@ -158,5 +158,83 @@ function get_network_data(  NETWORK_PATH::String;
             DistributionNetworkTopology(nodes, edges)
 end
 
+function add_load_profiles!(network::DistributionNetwork, load_profiles::Matrix{Float64}; delta_t::Integer, cos_phi::Float64=0.9)
+    nb_users = get_nb_load_bus(network)
+    _, nb_profiles = size(load_profiles)
+
+    @assert nb_users == nb_profiles
+    
+    for u in 1:nb_users
+        p = Profile(load_profiles[:, u], delta_t)
+        network.load_buses[u].load_profile = p
+    end
+
+    return 
+end
+
+function add_PV_profiles!(network::DistributionNetwork, PV_profiles::Matrix{Float64}; delta_t::Integer)
+    nb_users = get_nb_load_bus(network)
+
+    for u in 1:nb_users
+        p = Profile(load_profiles[:, u], delta_t)
+        network.load_buses[u].PV_installation.profile = p
+    end
+
+    return
+end
+
+
+house_nodeshape(x_i, y_i, s) = 
+[
+    (x_i + 0.7s * dx, y_i + 0.7s * dy) 
+    for (dx, dy) in [(1, 1), (0, 1.6), (-1,1), (-1, -1), (1, -1), (1, 1)]
+]
+
+subs_nodeshape(x_i, y_i, s) = [
+    (x_i + 0.8s * dx, y_i + 0.8s * dy) 
+    for (dx, dy) in [(1, 1), (-1, 1), (-1, -1), (1, -1), (1,1)]
+]
+
+# -- Network topology --
+function print_network_topology(topology::DistributionNetworkTopology; save_graph::Bool=true, show_graph::Bool=true)
+
+    # -- Building the network graph -- 
+    g = SimpleDiGraph(get_nb_nodes(topology))
+
+    for e in topology.edges 
+        add_edge!(g, e.from_node.id, e.to_node.id)
+    end
+
+    # -- Plotting the graph topology --
+
+    #node_shapes = [[subs_nodeshape for _ in Ns];[house_nodeshape for _ in Nu]]
+    colors      = ["#689BAA", "#C2C5DB"]
+    x_coords = [n.coord.x for n in topology.nodes]
+    y_coords = [n.coord.y for n in topology.nodes]
+
+    graph = graphplot( adjacency_matrix(g),
+                        x               = x_coords,           # x-coordinate of the nodes
+                        y               = y_coords,                                 # y-coordinate of the nodes
+                        nodesize        = 0.1,
+                        nodestrokewidth = 0,                                        # coutour line width of the node
+                        edgestyle       = :solid,
+                        nodealpha       = 1,                                        # transparency of node color
+                        names           = [L"\textbf{%$(node.id)}" for node in topology.nodes],                        # node label
+                        nodeshape       = :rect,                              # :circle, :ellipse, :hexagon
+                        nodecolor       = colors[[1 for _ in topology.nodes]],
+                        linewidth       = 1,
+                        arrow           = false,
+                        edgelabel       = Dict((e.from_node.id, e.to_node.id) =>  L"\textbf{%$(e.id)}" for e in topology.edges),
+                        axis_buffer     = 0.1,
+                        fontsize        = 10,
+                        size            = (1200, 1000),
+                        edgelabel_offset= 0.1,
+                        curves          = false,                                    # if an edge is curved or not
+    )
+
+    save_graph && Plots.savefig(graph, "network_topology.pdf")
+    show_graph && display(graph)
+    return
+end
 
 

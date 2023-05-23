@@ -15,6 +15,8 @@
 # =============================================================================
 import Random 
 import XLSX 
+import Plots
+using LaTeXStrings
 
 """
     Idea of this part:
@@ -93,8 +95,8 @@ function build_daily_load_profiles( PROFILE_PATH::String,
                                     EHP::Bool=false,
                                     EV_PATH::Union{Nothing,String}=nothing,
                                     EHP_PATH::Union{Nothing,String}=nothing,
-                                    scaling_EV::Union{Nothing,Float64}=nothing,
-                                    scaling_EHP::Union{Nothing,Float64}=nothing,
+                                    scaling_EV::Float64=1.0,
+                                    scaling_EHP::Float64=1.0,
                                     seed::Union{Nothing,Int64}=nothing
     )
 
@@ -186,4 +188,22 @@ function build_daily_PV_profiles(   PV_PROFILE_PATH::String,
     end
 
     return (PV_profiles ./ maximum(PV_profiles, dims=1)) * scaling_PV
+end
+
+
+function print_profiles(fig_name::String,
+                        base_profiles::Matrix{Float64}, 
+                        profiles::Matrix{Float64},
+                        delta_t::Integer; 
+                        EV::Bool=false,
+                        EHP::Bool=false)
+
+    time = 1:size(base_profiles)[1]
+    label = "Base load"
+    fig = Plots.plot(time, sum(base_profiles, dims=2), label=label, xlabel = L"Time steps: $\Delta t=5$ [min.]",)
+    label = EV ? (label * " + EV") : label 
+    label = EHP ? (label * " + EHP") : label 
+    Plots.plot!(fig, time, sum(profiles, dims=2), label=label)
+    savefig(fig, fig_name)
+    return
 end
