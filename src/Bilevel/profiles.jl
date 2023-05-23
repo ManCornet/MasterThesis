@@ -16,6 +16,16 @@
 import Random 
 import XLSX 
 
+"""
+    Idea of this part:
+    - Creating the profiles, (think about ways to add additionnal significative days)
+    - Think about ways to make the code modular to add additionnal significative days
+    - Create PV profiles
+    - When it is done add profiles etc to the structures
+    - Then compute the model + tests 
+
+"""
+
 """ process_time_steps 
 
     Arguments:
@@ -41,113 +51,139 @@ end
 # -- FUNCTION FOR AGGREGATING THE LOAD PROFILES TO HAVE TO HAVE LESS TIME STEPS --
 
 function change_granularity(time_serie::AbstractArray; nb_agg_periods::Integer = 1)
-    # We suppose the time series is of size (time, load_profiles)
 
     # ---- Checking arguments ----
-    nb_periods = size(time_serie)[1]
-    1 <= nb_agg_periods <= nb_periods || throw(
-    ArgumentError("[change_granularity] nb_agg_periods =  $nb_agg_periods not in [1, $nb_periods]"))
+    nrows, ncols = size(time_serie)
+    1 <= nrows <= nb_periods || throw(
+    ArgumentError("[change_granularity] nb_agg_periods =  $nb_agg_periods not in [1, $nrows]"))
 
     # ---- Changing granularity ----
-    nb_rows, nb_columns = size(time_serie)
-    new_time_serie = Matrix{Float64}(undef, 0, nb_columns)
-
-    mod = nb_rows % nb_agg_periods 
-    for i in 1:nb_agg_periods:(nb_rows - mod)
-        new_time_serie = [new_time_serie; sum(time_serie[i:(i+nb_agg_periods-1), :], dims=1)]
-    end
+    lost_time_steps = nrows % nb_agg_periods 
+    new_time_serie  =   [   mean(load_summer[i:(i+nb_agg_periods-1), j]) 
+                            for i in 1:nb_agg_periods:(nrows - lost_time_steps), 
+                                j in 1:ncols
+                        ]
     
-    return new_time_serie ./ nb_agg_periods
+    return new_time_serie, lost_time_steps
 end
 
-# String with significative days
-# -- FUNCTIONS TO CREATE THE LOAD PROFILES --
-# Function that creates the base load profiles
-function create_load_profiles(  PROFILE_DIR::String,
-                                nb_profiles::Int64, 
-                                peak_power::Float64,
-                                peak_distribution::Vector{Float64};
-                                winter::Bool=true, 
-                                EV::Bool=false, 
-                                EHP::Bool=false,
-                                seed=nothing
-                                )
+function check_profiles_dim(profiles::Vector{Matrix{Float64}})
+    sizes = [size(p) for p in profiles]
+    return all(y->y==first(sizes), sizes)
+end
 
-    
+function build_load_profiles(daily_profiles::Vector{Matrix{Float64}};
+                             scaling_factor::Float64=1.0)
 
-    # ---- Fetch base load profiles ---
-    SUMMER_LOAD_PATH = joinpath(PROFILE_DIR, "Summer_Load_Profiles.xlsx")
-    base_load_profiles = convert(Matrix{Float64}, XLSX.readxlsx(SUMMER_LOAD_PATH)[1][:])
-    summer_load_profiles = deepcopy(base_load_profiles)
-    nrows, ncols = size(base_load_profiles)
-    if EV 
-        EV_LOAD_PATH = joinpath(PROFILE_DIR, "Winter_EV_Profiles.xlsx")
-        base_load_EV = convert(Matrix{Float64}, XLSX.readxlsx(EV_LOAD_PATH)[1][:])
-        summer_load_profiles .+= base_load_EV
-    end
+    # -- Checking argument : all profiles must have same dimensions --
+    check_profiles_dim(daily_profiles) || throw(
+        ArgumentError("[build_load_profiles] the daily profiles don't have the same dimensions"))
 
-    if EHP 
-        EHP_LOAD_PATH = joinpath(PROFILE_DIR, "Winter_EHP_Profiles.xlsx")
-        base_load_EHP = convert(Matrix{Float64}, XLSX.readxlsx(EHP_LOAD_PATH)[1][:])
-        base_load_profiles .+= base_load_EHP
-    end
+    # -- Merge all daily load profiles and find peak values --
+    load_profiles = vcat(daily_profiles...) * scaling_factor
+    peak_value, peak_time_step = findmax(vec(sum(load_profiles, dims=2)))
 
-    if winter 
-        WINTER_LOAD_PATH = joinpath(PROFILE_DIR, "Winter_Load_Profiles.xlsx")
-        base_winter_profiles = convert(Matrix{Float64}, XLSX.readxlsx(WINTER_LOAD_PATH)[1][:])
-        nrows_winter, ncols_winter = size(base_winter_profiles)
+    return load_profiles, peak_value, peak_time_step
+end
 
-        @assert nrows == nrows_winter
-        @assert ncols == ncols_winter
+function build_daily_load_profiles( PROFILE_PATH::String, 
+                                    nb_profiles::Int64;
+                                    nb_agg_periods::Int64=1,
+                                    EV::Bool=false,
+                                    EHP::Bool=false,
+                                    EV_PATH::Union{Nothing,String}=nothing,
+                                    EHP_PATH::Union{Nothing,String}=nothing,
+                                    scaling_EV::Union{Nothing,Float64}=nothing,
+                                    scaling_EHP::Union{Nothing,Float64}=nothing,
+                                    seed::Union{Nothing,Int64}=nothing
+    )
 
-        base_load_profiles = vcat(base_load_profiles, base_winter_profiles)
-    end
 
-    # Fixing the seed to choose randomly the load profiles selected 
+    # --- Fetching the load profiles data ---
+    load_profiles = convert(Matrix{Float64}, XLSX.readxlsx(PROFILE_PATH)[1][:])
+    nrows, ncols = size(load_profiles)
+
+    # ---- Checking arguments ----
+    1 <= nb_profiles <= ncols || throw(
+    ArgumentError("""   [build_daily_load_profiles]: 
+                        nb_profiles not in [1, $ncols]: nb_profiles = $nb_profiles"""))
+
+    1 <= nb_agg_periods <= nrows || throw(
+    ArgumentError("""   [build_daily_load_profiles]: 
+                        number of aggregated periods not in [1, $nrows]: nb_agg_periods = $period"""))
+
+    # ---- Building load profiles ----
     if !isnothing(seed)
         Random.seed!(seed)
         id_loads = Random.rand(1:ncols, nb_profiles)
     else 
         id_loads = 1:nb_profiles
     end
+    # select only a subpart of the profiles
+    load_profiles = reshape(load_profiles[:, id_loads], (nrows, nb_profiles))
 
-    # Base load profiles for the users
-    base_load_profiles = reshape(base_load_profiles[:, id_loads], (nrows, length(id_loads)))
+    # ---- Adding EV profiles to consumption ----
+    if EV
+        @assert !isnothing(scaling_EV)
 
-    # ---- Scale load profiles ---
+        EV_profiles = convert(Matrix{Float64}, XLSX.readxlsx(EV_PATH)[1][:])
+        EV_profiles = reshape(load_profiles[:, id_loads], (nrows, nb_profiles))
+        load_profiles .+= scaling_EV * EV_profiles
+    end 
 
+    # ---- Adding EHP profiles to consumption ----
+    if EHP
+        @assert !isnothing(scaling_EHP)
 
-     
-
-    # ---- Checking arguments ----
-    nb_min_day = 24 * 60
-    data_granularity = nb_min_day ÷ nrows
-    nb_agg_time_steps = process_time_steps(delta_t=delta_t, data_granularity=data_granularity)
-
-    1 <= nb_agg_time_steps <= nrows || throw(
-    ArgumentError("[create_load_profiles] number of aggregated periods not in [1, $nrows]"))
-
-    1 <= nb_profiles <= ncols || throw(
-    ArgumentError("[create_load_profiles] nb_profiles not in [1, $ncols]"))
-
-    # ---- Rescale according to peak_power before aggregating ----
-    
-    if nb_agg_time_steps > 1
-
+        EHP_profiles = convert(Matrix{Float64}, XLSX.readxlsx(EHP_PATH)[1][:])
+        EHP_profiles = reshape(load_profiles[:, id_loads], (nrows, nb_profiles))
+        load_profiles .+= scaling_EHP * EHP_profiles 
     end
-return
 
+    # ---- Aggregating profiles to change granularity ----
+    if nb_agg_periods > 1 
+        load_profiles = change_granularity(load_profiles; nb_agg_periods)
+    end
 
+    return load_profiles
+end
 
 
 # -- FUNCTIONS TO CREATE THE PV PROFILES --
-function create_PV_profiles(   PROFILE_DIR::String; 
-    winter::Bool=true, 
-    EV::Bool=false, 
-    HP::Bool=false,
-    peak_power::Float64=7.0,
-    delta_t::Int64=60
-    )
+function build_daily_PV_profiles(   PV_PROFILE_PATH::String,
+                                    nb_profiles::Integer; 
+                                    scaling_PV::Float64=1.0,
+                                    nb_agg_periods::Integer=1,
+                                    seed::Union{Nothing,Int64}=nothing
+                                )
 
+    # --- Fetching the PV profiles data ---
+    PV_profiles = convert(Matrix{Float64}, XLSX.readxlsx(PV_PROFILE_PATH)[1][:])
+    nrows, ncols = size(PV_profile)
 
-return
+    # ---- Checking arguments ----
+    1 <= nb_profiles <= ncols || throw(
+    ArgumentError("""   [build_daily_PV_profiles]: 
+                        nb_profiles not in [1, $ncols]: nb_profiles = $nb_profiles"""))
+
+    1 <= nb_agg_periods <= nrows || throw(
+    ArgumentError("""   [build_daily_PV_profiles]: 
+                        number of aggregated periods not in [1, $nrows]: nb_agg_periods = $period"""))
+
+    # ---- Building PV profiles ----
+    if !isnothing(seed)
+        Random.seed!(seed)
+        id_profiles = Random.rand(1:ncols, nb_profiles)
+    else 
+        id_profiles = 1:nb_profiles
+    end
+
+    # select only a subpart of the profiles
+    PV_profiles = reshape(load_profiles[:, id_profiles], (nrows, nb_profiles))
+
+    if nb_agg_periods > 1 
+        PV_profiles = change_granularity(PV_profiles;nb_agg_periods=nb_agg_periods)
+    end
+
+    return (PV_profiles ./ maximum(PV_profiles, dims=1)) * scaling_PV
+end
