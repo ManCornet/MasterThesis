@@ -218,7 +218,7 @@ profiles_data_dir = joinpath(root_dir, "ManchesterData", "LCT_profiles")
 NETWORK_PATH = joinpath(network_data_dir, "network_Nahman_Peric_2S23H.xlsx") 
 
 # -- Fetching the network data --
-network, network_topology = get_network_data(NETWORK_PATH)
+network, network_topology = get_network_data(NETWORK_PATH;max_pv_capa=PV_capa)
 # print_network_topology(network_topology)
 # save(network_topology, "network_topology.json")
 # save(network_data, "network_data.json")
@@ -308,7 +308,7 @@ print_PV_profiles(joinpath( plot_dir, "PV_profiles.pdf"), PV_profiles;
 # -- Add PV profiles to network structure -- 
 PQ_diagram = (max_q = 0.3, slope=-1.0)
 add_PV_profiles!(network, PV_profiles, ids_profiles[1]; 
-                capa_max = PV_capa, PQ_diagram = PQ_diagram, delta_t=delta_t)
+                 PQ_diagram = PQ_diagram, delta_t=delta_t)
 
 # =========================== Costs definition  ===========================
 money_basis = 1.0

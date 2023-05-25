@@ -34,8 +34,8 @@ set_optimizer_attribute(model, "MIPFocus", 1)
     S_sub[Ns, T] >= 0, (container = Array) # Because apparent power
     P_ij_k[L, K, T], (container = Array)
     Q_ij_k[L, K, T], (container = Array)
-    P_ij[L, T], (container = Array)
-    Q_ij[L, T], (container = Array)
+    #P_ij[L, T], (container = Array)
+    #Q_ij[L, T], (container = Array)
     S_sub_capa[Ns] >= 0, (container = Array)
     Y[L], (container=Array, binary=true)
     Alpha[L, K], (container=Array, binary=true)
@@ -124,11 +124,11 @@ end
                          (R[l, k]^2 + X[l, k]^2) * I_sqr_k[l, k, t] for k in K) -
                     M * (1 - Y[l])
 
-    [l = L, t = T], I_sqr[l, t] == sum(I_sqr_k[l, k, t] for k in K)
-    [l = L, t = T], P_ij[l, t] == sum(P_ij_k[l, k, t] for k in K)
-    [l = L, t = T], Q_ij[l, t] == sum(Q_ij_k[l, k, t] for k in K)
+    #[l = L, t = T], I_sqr[l, t] == sum(I_sqr_k[l, k, t] for k in K)
+    #[l = L, t = T], P_ij[l, t] == sum(P_ij_k[l, k, t] for k in K)
+    #[l = L, t = T], Q_ij[l, t] == sum(Q_ij_k[l, k, t] for k in K)
 
-    [l = L, t = T], [V_sqr[line_ends[l][1], t] / 2; I_sqr[l, t]; P_ij[l, t]; Q_ij[l, t]] in RotatedSecondOrderCone()
+    [l = L, t = T], [V_sqr[line_ends[l][1], t] / 2; sum(I_sqr_k[l, k, t] for k in K); sum(P_ij_k[l, k, t] for k in K); sum(Q_ij_k[l, k, t] for k in K)] in RotatedSecondOrderCone()
     #[l = L, k = K, t = T], [V_sqr[line_ends[l][1], t] / 2; I_sqr_k[l, k, t]; P_ij_k[l, k, t]; Q_ij_k[l, k, t]] in RotatedSecondOrderCone()
 
     #[i = Nu], sum(Y[l] for l in Omega_sending[i]) + sum(Y[l] for l in Omega_receiving[i]) >= 1

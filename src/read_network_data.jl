@@ -71,7 +71,7 @@ function get_buses_data(NETWORK_PATH::String, V_limits::VLIM, pu_basis::PU_BASIS
 
     nodes = [Node(i, (x=convert(Float64, df_bus.x[i]), y=convert(Float64, df_bus.y[i]))) for i in 1:N]
     subs_buses = [Substation(nodes[i], V_limits, convert(Float64, df_bus.S_G_max_mva[i]) / pu_basis.base_power) for i in 1:Ns]
-    load_buses = [User(nodes[i], V_limits, max_pv_capa) for i in Ns+1:N]
+    load_buses = [User(nodes[i], V_limits, max_pv_capa / pu_basis.base_power) for i in Ns+1:N]
 
     return nodes, subs_buses, load_buses
 end
@@ -144,7 +144,8 @@ end
         - A structure of type NetworkTopology that contains the topology of the network
 """
 function get_network_data(  NETWORK_PATH::String; 
-                            voltage_limits::VLIM=(V_min=0.95, V_max=1.05), 
+                            voltage_limits::VLIM=(V_min=0.95, V_max=1.05),
+                            max_pv_capa::Float64=0.4, 
                             pu_basis::PU_BASIS=define_pu_basis(),
                             money_basis::Float64=1.0
                             )
@@ -173,7 +174,6 @@ end
 function add_PV_profiles!(  network::Network, 
                             PV_profiles::Matrix{Float64}, 
                             id_users;
-                            capa_max::Float64,
                             PQ_diagram::PQ_DIAGRAM,
                             delta_t::Integer)
 
@@ -184,7 +184,7 @@ function add_PV_profiles!(  network::Network,
 
     for (index, u) in enumerate(id_users)
         p = Profile(PV_profiles[:, index], delta_t)
-        network.load_buses[u].PV_installation = PV(capa_max, p, PQ_diagram)
+        network.load_buses[u].PV_installation = PV(p, PQ_diagram)
     end
     return
 end
