@@ -32,6 +32,11 @@ function build_model(   simulation::Simulation;
         #_add_RefVoltages!(model)
         #_add_LoadOverSatisfaction!(model)
         #_add_PowerFlowEqs!(model, formulation.powerflow, formulation.networkgraph, formulation.condvars)
+
+
+
+
+        
     end
 
     @info @sprintf("Built model in %.2f seconds", time_model)

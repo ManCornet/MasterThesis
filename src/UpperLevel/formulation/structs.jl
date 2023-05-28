@@ -11,7 +11,7 @@ struct BFM <: PowerFlowFormulation end
 struct NoDG <: TypeofProdFormulation end
 struct DG <: TypeofProdFormulation end
 
-struct SimpleRadiality <: RadialityFormulation end
+#struct SimpleRadiality <: RadialityFormulation end
 struct SingleCommodityFlow <: RadialityFormulation end
 struct MultiCommodityFlow <: RadialityFormulation end
 struct SpanningTree <: RadialityFormulation end

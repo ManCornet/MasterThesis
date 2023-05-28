@@ -23,6 +23,7 @@ end
 set_optimizer_attribute(model, "TimeLimit", 600)
 set_optimizer_attribute(model, "MIPGap", 1e-2)
 set_optimizer_attribute(model, "MIPFocus", 1)
+set_optimizer_attribute(model, "NonConvex", 2) # set this to test conic constraints equality
 #set_optimizer_attribute(model, "DualReductions", 0)
 
 @variables(UPPER_MODEL, begin
@@ -128,7 +129,8 @@ end
     #[l = L, t = T], P_ij[l, t] == sum(P_ij_k[l, k, t] for k in K)
     #[l = L, t = T], Q_ij[l, t] == sum(Q_ij_k[l, k, t] for k in K)
 
-    [l = L, t = T], [V_sqr[line_ends[l][1], t] / 2; sum(I_sqr_k[l, k, t] for k in K); sum(P_ij_k[l, k, t] for k in K); sum(Q_ij_k[l, k, t] for k in K)] in RotatedSecondOrderCone()
+    #[l = L, t = T], [V_sqr[line_ends[l][1], t] / 2; sum(I_sqr_k[l, k, t] for k in K); sum(P_ij_k[l, k, t] for k in K); sum(Q_ij_k[l, k, t] for k in K)] in RotatedSecondOrderCone()
+    [l = L, t = T], V_sqr[line_ends[l][1], t] * sum(I_sqr_k[l, k, t] for k in K) == sum(P_ij_k[l, k, t] for k in K)^2 + sum(Q_ij_k[l, k, t] for k in K)^2
     #[l = L, k = K, t = T], [V_sqr[line_ends[l][1], t] / 2; I_sqr_k[l, k, t]; P_ij_k[l, k, t]; Q_ij_k[l, k, t]] in RotatedSecondOrderCone()
 
     #[i = Nu], sum(Y[l] for l in Omega_sending[i]) + sum(Y[l] for l in Omega_receiving[i]) >= 1
@@ -147,7 +149,8 @@ end
     [l = L, k = K, t = T], Q_ij_k[l, k, t] >= -MAX_CURRENT[l, k] * MAX_VOLTAGE * Alpha[l, k] # indispensable
 
     # Substation apparent power limits
-    [i = Ns, t = T], [S_sub[i, t]; P_sub[i, t]; Q_sub[i, t]] in SecondOrderCone()
+    #[i = Ns, t = T], [S_sub[i, t]; P_sub[i, t]; Q_sub[i, t]] in SecondOrderCone()
+    [i = Ns, t = T], S_sub[i, t]^2 ==  P_sub[i, t]^2 + Q_sub[i, t]^2
     [i = Ns, t = T], S_sub[i, t] <= S_rating_init[i] + S_sub_capa[i]
     [i = Ns], S_sub_capa[i] <= Beta[i] * S_rating_max[i]
 

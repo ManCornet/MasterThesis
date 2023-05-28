@@ -1,5 +1,3 @@
-
-
 # ---------------------------------------------------------------------------- #
 #                               Bus variables                                  #
 # ---------------------------------------------------------------------------- #
@@ -81,6 +79,7 @@ function _add_BranchVariables!(model::JuMP.AbstractModel, ::BIM, ::OneConfig)::N
     return
 end
 
+
 function _add_BranchVariables!(model::JuMP.AbstractModel, ::BIM, ::ReconfigAllowed)::Nothing 
 
     network_data = model[:network_data]
@@ -106,8 +105,30 @@ function _add_BranchVariables!(model::JuMP.AbstractModel, ::BIM, ::ReconfigAllow
     return
 end
 
+# ---------------------------------------------------------------------------- #
+#                          Radiality variables                                 #
+# ---------------------------------------------------------------------------- #
+# For now, only single commodity
+# Here, we want to test:
+# Reconfiguration vs only one configuration 
+# 1° Single-Commodity constraints 
+# 2° Multi-Commodity constraints 
+# 3° SpanningTree constraints (called like that by Jabr what is the real name of that ?)
+#    => parent child relation ship
+# 4° + for each allow the version with reconfiguration etc
+function _add_RadialityVariables!(model::JuMP.AbstractModel, ::OneConfig, ::SingleCommodityFlow)::Nothing 
 
-function _add_BranchVariables!(model::JuMP.AbstractModel, ::BFM, ::OneConfig)::Nothing 
+    network_data = model[:network_data]
+    T = model[:time_steps]
+    L = get_nb_lines(network_data)
+
+    JuMP.@variable(model, k_ij[1:T, 1:L])
+
+    return
+end
+
+
+function _add_RadialityVariables!(model::JuMP.AbstractModel, ::OneConfig, ::MultiCommodityFlow)::Nothing 
 
     network_data = model[:network_data]
     T = model[:time_steps]
@@ -117,16 +138,23 @@ function _add_BranchVariables!(model::JuMP.AbstractModel, ::BFM, ::OneConfig)::N
     JuMP.@variables(model,   
                     begin 
                         P_ij_k[1:T, 1:L, 1:K]
+                        P_ji_k[1:T, 1:L, 1:K] 
                         Q_ij_k[1:T, 1:L, 1:K]                           
-                        X_ij_im[1:T, 1:L, 1:K]
-                        Alpha[1:L, 1:K], (binary = true)
-                        Y[1:L], (binary = true) 
+                        Q_ji_k[1:T, 1:L, 1:K]
+                        X_ij_k_i[1:T, 1:L, 1:K, 1:N]
+                        X_ij_k_re[1:T, 1:L, 1:K] >= 0
+                        X_ij_k_im[1:T, 1:L, 1:K]
+                        Alpha[1:T, 1:L, 1:K], (binary = true)
+                        Y[1:T, 1:L], (binary = true) 
                     end
                     )
     # Don't forget constraints that do not allow if one line has been built to be
     # built with different conductors at time steps that are different
     return
 end
+
+
+
 
 
 
