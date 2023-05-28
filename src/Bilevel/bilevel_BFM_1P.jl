@@ -29,7 +29,7 @@ set_optimizer_attribute(model, "NonConvex", 2) # set this to test conic constrai
 @variables(UPPER_MODEL, begin
     MIN_VOLTAGE^2 <= V_sqr[N, T] <= MAX_VOLTAGE^2, (container = Array)
     I_sqr_k[L, K, T] >= 0, (container = Array)
-    I_sqr[L, T] >= 0, (container = Array)
+    #I_sqr[L, T] >= 0, (container = Array)
     P_sub[Ns, T], (container = Array)
     Q_sub[Ns, T], (container = Array)
     S_sub[Ns, T] >= 0, (container = Array) # Because apparent power

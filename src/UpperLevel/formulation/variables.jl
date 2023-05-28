@@ -35,8 +35,8 @@ function _add_BusVariables!(model::JuMP.AbstractModel, ::DG)::Nothing
                         P_sub[1:T, 1:Ns]                            
                         Q_sub[1:T, 1:Ns]                                 
                         S_sub[1:T, 1:Ns] >= 0
+                        S_sub_capa[1:Ns] >= 0                                    
                         p_pv[1:T, 1:Nu]  >= 0
-                        q_pv[1:T, 1:Nu]  >= 0
                         s_conv_pv[1:Nu]  >= 0
                         p_pv_max[1:Nu]   >= 0
                         Beta[1:Ns], (binary=true)  
@@ -55,12 +55,13 @@ end
 # ---------------------------------------------------------------------------- #
 #                             Branch variables                                 #
 # ---------------------------------------------------------------------------- #
-function _add_BranchVariables!(model::JuMP.AbstractModel, ::BIM, ::OneConfig)::Nothing 
+function _add_BranchVariables!(model::JuMP.AbstractModel, ::BIM)::Nothing 
 
     network_data = model[:network_data]
     T = model[:time_steps]
     L = get_nb_lines(network_data)
     K = get_nb_conductors(network_data)
+    N = get_nb_bus(network_data)
 
     JuMP.@variables(model,   
                     begin 
@@ -79,8 +80,7 @@ function _add_BranchVariables!(model::JuMP.AbstractModel, ::BIM, ::OneConfig)::N
     return
 end
 
-
-function _add_BranchVariables!(model::JuMP.AbstractModel, ::BIM, ::ReconfigAllowed)::Nothing 
+function _add_BranchVariables!(model::JuMP.AbstractModel, ::BFM)::Nothing 
 
     network_data = model[:network_data]
     T = model[:time_steps]
@@ -90,20 +90,81 @@ function _add_BranchVariables!(model::JuMP.AbstractModel, ::BIM, ::ReconfigAllow
     JuMP.@variables(model,   
                     begin 
                         P_ij_k[1:T, 1:L, 1:K]
-                        P_ji_k[1:T, 1:L, 1:K] 
                         Q_ij_k[1:T, 1:L, 1:K]                           
-                        Q_ji_k[1:T, 1:L, 1:K]
-                        X_ij_k_i[1:T, 1:L, 1:K, 1:N]
-                        X_ij_k_re[1:T, 1:L, 1:K] >= 0
-                        X_ij_k_im[1:T, 1:L, 1:K]
+                        I_sqr_k[1:T, 1:L, 1:K] >= 0
+                    end
+                    )
+    return
+end
+
+# ---------------------------------------------------------------------------- #
+#                          Conductor choice variables                          #
+# ---------------------------------------------------------------------------- #
+function _add_CondChoiceVariables!(model::JuMP.AbstractModel, ::OneConfig, ::Undirected)
+
+    network_data = model[:network_data]
+    L = get_nb_lines(network_data)
+    K = get_nb_conductors(network_data)
+
+    JuMP.@variables(model,   
+                    begin 
+                        Alpha[1:L, 1:K], (binary = true)
+                        Y[1:L], (binary = true) 
+                    end
+                    )
+    return
+end
+
+function _add_CondChoiceVariables!(model::JuMP.AbstractModel, ::ReconfigAllowed, ::Undirected)
+
+    network_data = model[:network_data]
+    T = model[:time_steps]
+    L = get_nb_lines(network_data)
+    K = get_nb_conductors(network_data)
+
+    JuMP.@variables(model,   
+                    begin 
                         Alpha[1:T, 1:L, 1:K], (binary = true)
                         Y[1:T, 1:L], (binary = true) 
                     end
                     )
-    # Don't forget constraints that do not allow if one line has been built to be
-    # built with different conductors at time steps that are different
     return
 end
+
+function _add_CondChoiceVariables!(model::JuMP.AbstractModel, ::OneConfig, ::Directed)
+
+    network_data = model[:network_data]
+    T = model[:time_steps]
+    L = get_nb_lines(network_data)
+    K = get_nb_conductors(network_data)
+
+    JuMP.@variables(model,   
+                    begin 
+                        Alpha[1:L, 1:K], (binary = true)
+                        Y_send[1:L], (binary = true)  
+                        Y_rec[1:L], (binary = true)  
+                    end
+                    )
+    return
+end
+
+function _add_CondChoiceVariables!(model::JuMP.AbstractModel, ::ReconfigAllowed, ::Directed)
+
+    network_data = model[:network_data]
+    T = model[:time_steps]
+    L = get_nb_lines(network_data)
+    K = get_nb_conductors(network_data)
+
+    JuMP.@variables(model,   
+                    begin 
+                        Alpha[1:T, 1:L, 1:K], (binary = true)
+                        Y_send[1:T, 1:L], (binary = true)  
+                        Y_rec[1:T, 1:L], (binary = true)  
+                    end
+                    )
+    return
+end
+
 
 # ---------------------------------------------------------------------------- #
 #                          Radiality variables                                 #
@@ -122,34 +183,19 @@ function _add_RadialityVariables!(model::JuMP.AbstractModel, ::OneConfig, ::Sing
     T = model[:time_steps]
     L = get_nb_lines(network_data)
 
-    JuMP.@variable(model, k_ij[1:T, 1:L])
+    JuMP.@variable(model, k_ij[1:L])
 
     return
 end
 
-
-function _add_RadialityVariables!(model::JuMP.AbstractModel, ::OneConfig, ::MultiCommodityFlow)::Nothing 
+function _add_RadialityVariables!(model::JuMP.AbstractModel, ::ReconfigAllowed, ::SingleCommodityFlow)::Nothing 
 
     network_data = model[:network_data]
     T = model[:time_steps]
     L = get_nb_lines(network_data)
-    K = get_nb_conductors(network_data)
 
-    JuMP.@variables(model,   
-                    begin 
-                        P_ij_k[1:T, 1:L, 1:K]
-                        P_ji_k[1:T, 1:L, 1:K] 
-                        Q_ij_k[1:T, 1:L, 1:K]                           
-                        Q_ji_k[1:T, 1:L, 1:K]
-                        X_ij_k_i[1:T, 1:L, 1:K, 1:N]
-                        X_ij_k_re[1:T, 1:L, 1:K] >= 0
-                        X_ij_k_im[1:T, 1:L, 1:K]
-                        Alpha[1:T, 1:L, 1:K], (binary = true)
-                        Y[1:T, 1:L], (binary = true) 
-                    end
-                    )
-    # Don't forget constraints that do not allow if one line has been built to be
-    # built with different conductors at time steps that are different
+    JuMP.@variable(model, k_ij[1:T, 1:L])
+
     return
 end
 

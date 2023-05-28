@@ -70,10 +70,10 @@ function get_buses_data(NETWORK_PATH::String, V_limits::VLIM, pu_basis::PU_BASIS
     Nu = N - Ns                            # Number of user buses
 
     nodes = [Node(i, (x=convert(Float64, df_bus.x[i]), y=convert(Float64, df_bus.y[i]))) for i in 1:N]
-    subs_buses = [Substation(nodes[i], V_limits, convert(Float64, df_bus.S_G_max_mva[i]) / pu_basis.base_power) for i in 1:Ns]
+    sub_buses = [Substation(nodes[i], V_limits, convert(Float64, df_bus.S_G_max_mva[i]) / pu_basis.base_power) for i in 1:Ns]
     load_buses = [User(nodes[i], V_limits, max_pv_capa / pu_basis.base_power) for i in Ns+1:N]
 
-    return nodes, subs_buses, load_buses
+    return nodes, sub_buses, load_buses
 end
 
 """ get_lines_data 
@@ -118,7 +118,7 @@ function get_conductors_data(NETWORK_PATH::String, pu_basis::PU_BASIS, money_bas
 
     K = DataFrames.nrow(df_cond)    
 
-    conds = [Conductor( df_cond.name[k], 
+    conds = [Conductor( convert(String, df_cond.name[k]), 
                         convert(Float64, df_cond.r_ohm_per_km[k]) / pu_basis.base_impedance, 
                         convert(Float64, df_cond.x_ohm_per_km[k]) / pu_basis.base_impedance,
                         convert(Float64, df_cond.max_i_ka[k]) / pu_basis.base_current,
@@ -150,24 +150,25 @@ function get_network_data(  NETWORK_PATH::String;
                             money_basis::Float64=1.0
                             )
     
-    nodes, subs_buses, load_buses = get_buses_data(NETWORK_PATH, voltage_limits, pu_basis, max_pv_capa)
+    nodes, sub_buses, load_buses = get_buses_data(NETWORK_PATH, voltage_limits, pu_basis, max_pv_capa)
     edges, lines = get_lines_data(NETWORK_PATH, nodes)
     conductors = get_conductors_data(NETWORK_PATH, pu_basis, money_basis)
 
-    return  Network(lines, subs_buses, load_buses, conductors, pu_basis), 
+    return  Network(lines, sub_buses, load_buses, conductors, pu_basis), 
             NetworkTopology(nodes, edges)
 end
 
-function add_load_profiles!(network::Network, load_profiles::Matrix{Float64}; delta_t::Integer, cos_phi::Float64=0.9)
+function add_load_profiles!(network::Network, load_profiles::Matrix{Float64}; delta_t::Integer, pu_basis::PU_BASIS)
     nb_users = get_nb_load_bus(network)
     _, nb_profiles = size(load_profiles)
 
     @assert nb_users == nb_profiles
     
     for u in 1:nb_users
-        p = Profile(load_profiles[:, u], delta_t)
+        p = Profile(load_profiles[:, u] ./ pu_basis.base_power, delta_t)
         network.load_buses[u].load_profile = p
     end
+
     return 
 end
 

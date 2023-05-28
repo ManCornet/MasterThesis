@@ -229,7 +229,7 @@ PU_BASIS = NamedTuple{(:base_power, :base_voltage, :base_current, :base_impedanc
 """
 mutable struct Network
     lines::Vector{Line}
-    subs_buses::Vector{Substation} # contains the substation buses
+    sub_buses::Vector{Substation} # contains the substation buses
     load_buses::Vector{User} # contains the load buses
     conductors::Vector{Conductor}
     pu_basis::PU_BASIS
@@ -293,11 +293,11 @@ function get_load_buses(d::Network)
 end
 
 function get_nb_sub_bus(d::Network)
-    return length(d.subs_buses)
+    return length(d.sub_buses)
 end
 
 function get_nb_bus(d::Network)
-    return length(d.load_buses) + length(d.subs_buses)
+    return length(d.load_buses) + length(d.sub_buses)
 end
 
 function get_nb_lines(d::Network)

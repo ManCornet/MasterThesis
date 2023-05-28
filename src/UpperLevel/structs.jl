@@ -186,7 +186,7 @@ end
 
 mutable struct Line
     edge::Edge
-    line_length::Float64   # in km
+    length::Float64   # in km
     built::Bool
     line_cost::Union{Nothing, Float64}
     conductor::Union{Nothing, Conductor}       # the conductor that was chosen
@@ -194,12 +194,12 @@ mutable struct Line
     P_send::Union{Nothing, Float64}            # P flowing at sending end of the line
     Q_send::Union{Nothing, Float64}            # Q flowing at sending end of the line
 
-    function Line(edge::Edge, line_length::Float64) 
+    function Line(edge::Edge, length::Float64) 
         if  line_length < 0 
             throw(DomainError("""[Line]: The length of a line cannot be negative."""))
         end
         
-        return new(edge, line_length, false, nothing, nothing, nothing, nothing, nothing) 
+        return new(edge, length, false, nothing, nothing, nothing, nothing, nothing) 
     end
 end
 
@@ -224,7 +224,7 @@ PU_BASIS = NamedTuple{(:base_power, :base_voltage, :base_current, :base_impedanc
 """
 mutable struct Network
     lines::Vector{Line}
-    subs_buses::Vector{Substation} # contains the substation buses
+    sub_buses::Vector{Substation} # contains the substation buses
     load_buses::Vector{User} # contains the load buses
     conductors::Vector{Conductor}
     pu_basis::PU_BASIS

@@ -14,23 +14,31 @@ function build_model(   simulation::Simulation;
     time_model = @elapsed begin
         # ====================== Set up the Gurobi solver =====================
         model = JuMP.Model(Gurobi.Optimizer)
-        JuMP.set_optimizer_attribute(model, "TimeLimit", 200)
-        JuMP.set_optimizer_attribute(model, "Presolve", 0)
+        JuMP.set_optimizer_attribute(model, "TimeLimit", 600)
+        JuMP.set_optimizer_attribute(model, "MIPGap", 1e-2)
+        JuMP.set_optimizer_attribute(model, "MIPFocus", 1)
+        if typeof(formulation.convexity) <: NonConvex
+            JuMP.set_optimizer_attribute(model, "NonConvex", 2)  
+        end
 
         model[:network_data] = simulation.network
         model[:DSO_costs]    = simulation.DSO_costs 
         model[:User_costs]   = simulation.User_costs 
-        model[:time_steps]   = simulation.nb_time_steps
+        model[:time_steps]   = 1 #simulation.nb_time_steps ATTENTION PUT BACK TO NB TIME STEPS
         model[:delta_t]      = simulation.delta_t
         
         # =========================== Build the model =========================
         # -- Add the variables of the model --
         _add_BusVariables!(model, formulation.production)
-        #_add_BranchVariables!(model, )
+        _add_BranchVariables!(model, formulation.powerflow)
+        _add_CondChoiceVariables!(model, formulation.choice_topology, formulation.graph_type)
 
-        #_add_BranchVariables!(model, formulation.networkgraph, formulation.condvars)
-        #_add_RefVoltages!(model)
-        #_add_LoadOverSatisfaction!(model)
+        _add_RefVoltages!(model)
+        _add_LoadOverSatisfaction!(model, formulation.production)
+        _add_SubstationConstraints!(model, formulation.convexity)
+        _add_CurrentOpConstraints!(model, formulation.i_constraints, formulation.choice_topology)
+        _add_VoltageOpConstraints!(model, formulation.v_constraints)
+
         #_add_PowerFlowEqs!(model, formulation.powerflow, formulation.networkgraph, formulation.condvars)
 
 
