@@ -185,7 +185,7 @@ end
 #                               PowerBalance constraints                       #
 # ---------------------------------------------------------------------------- #
 function _add_PowerBalanceConstraints!( model::JuMP.AbstractModel, 
-                                        prod_type::TypeofProd, 
+                                        prod_type::TypeofProdFormulation, 
                                         ::BFM
                                     )::Nothing
    
@@ -231,7 +231,7 @@ function _add_PowerBalanceConstraints!( model::JuMP.AbstractModel,
 end
 
 function _add_PowerBalanceConstraints!( model::JuMP.AbstractModel, 
-                                        prod_type::TypeofProd, 
+                                        prod_type::TypeofProdFormulation, 
                                         ::BIM
                                     )::Nothing
 
@@ -370,8 +370,8 @@ function _add_PowerFlowConstraints!(model::JuMP.AbstractModel, topology_choice::
                                                 B * model[:X_ij_k_im][t, l, k]
 
                     model[:P_ji_k][t, l, k] ==  G * (model[:X_ij_k_i][t, l, k, ito] - 
-                                                model[:X_ij_k_re][t, l, k]) 
-                                                - B * model[:X_ij_k_im][t, l, k]
+                                                model[:X_ij_k_re][t, l, k]) - 
+                                                B * model[:X_ij_k_im][t, l, k]
 
                     model[:Q_ij_k][t, l, k] ==  B * (model[:X_ij_k_i][t, l, k, ifrom] - 
                                                 model[:X_ij_k_re][t, l, k]) - 
@@ -430,21 +430,42 @@ function _add_PowerFlowConstraints!(model::JuMP.AbstractModel, topology_choice::
 end
 
 
-function _add_PowerFlowConstraints!(model::JuMP.AbstractModel, ::BFM, ::OneConfig, graph::Undirected)::Nothing
+function _add_PowerFlowConstraints!(model::JuMP.AbstractModel, 
+                                    topology_choice::TopologyChoiceFormulation,
+                                    graph::TypeOfGraph,
+                                )::Nothing
 
-    Omega_sending = model[:network_topology].sending_lines
-    Omega_receiving = model[:network_topology].receiving_lines
     network_data = model[:network_data]
     T  = model[:time_steps]
     L = get_nb_lines(network_data)
     K = get_nb_conductors(network_data)
-    Ns = get_nb_sub_bus(network_data)
-    Nu = get_nb_load_bus(network_data)
     conductors = network_data.conductors
     lines = network_data.lines
 
-    Y = isa(graph, Undirected) ? @JuMP.@expression(model, Y[t=1:T, l=1:L], model[:Y][]) : 
+    voltage_expr = JuMP.@expression(
+        model, 
+        [t=1:T, l=1:L],
+        - sum(2 * (conductors[k].r * len * model[:P_ij_k][t, l, k] + 
+        conductors[k].x * len * model[:Q_ij_k][t, l, k]) +
+        ((conductors[k].r * len)^2 + (conductors[k].x * len)^2) * 
+        model[:I_sqr_k][t, l, k] for k in K)) 
 
+    if isa(graph, Undirected)
+        Y = JuMP.@expression(  model, 
+                                [t=1:T, l=1:L], 
+                                (1 - model[:Y][compute_index((l), t, topology_choice)...]) * 
+                                (buses[lines[l].edge.to_node.id].V_limits.V_max^2 - 
+                                buses[lines[l].edge.from_node.id].V_limits.V_min^2)
+                            )
+    elseif isa(graph, Directed)
+        Y = JuMP.@expression(  model, 
+                                [t=1:T, l=1:L], 
+                                (1 - (model[:Y_send][compute_index((l), t, topology_choice)...] + 
+                                model[:Y_rec][compute_index((l), t, topology_choice)...])) *
+                                (buses[lines[l].edge.to_node.id].V_limits.V_max^2 - 
+                                buses[lines[l].edge.from_node.id].V_limits.V_min^2)
+                            )
+    end
 
     for l in 1:L 
         ifrom = lines[l].edge.from_node.id
@@ -452,29 +473,29 @@ function _add_PowerFlowConstraints!(model::JuMP.AbstractModel, ::BFM, ::OneConfi
         len = lines[l].length
         for t in 1:T
             JuMP.@constraints(  model, begin
-                model[:V_sqr][t, ito] - model[:V_sqr][t, ifrom] <= - sum(2 * (conductors[k].r * len * 
-                    model[:P_ij_k][t, l, k] + conductors[k].x * len * model[:Q_ij_k][l, k, t]) +
-                    ((conductors[k].r * len)^2 + (conductors[k].x * len)^2) * model[:I_sqr_k][t, l, k] for k in K) + 
-                    (buses[ito].V_limits.V_max^2 - buses[ito].V_limits.V_min^2) * (1 - model[:Y][l])
+                model[:V_sqr][t, ito] - model[:V_sqr][t, ifrom] <= voltage_expr[t, l] + 
+                                            Y[compute_index((l), t, topology_choice)...]
+
+                model[:V_sqr][t, ito] - model[:V_sqr][t, ifrom] >= voltage_expr[t, l] + 
+                                            Y[compute_index((l), t, topology_choice)...]
+                
             end)
         end
     end
-    
-                        [t=1:T, l=1:L], 
-
-                        [t=1:T, l=1:L], model[:V_sqr][t, lines[l].edge.to_node.id] - 
-                                        model[:V_sqr][t, lines[l].edge.from_node.id] >=
-                                        - sum(2 * (conductors[k].r * lines[l].length * 
-                                        model[:P_ij_k][t, l, k] + conductors[k].x * 
-                                        lines[l].length * model[:Q_ij_k][l, k, t]) +
-                                        ((conductors[k].r * lines[l].length)^2 + 
-                                        (conductors[k].x * lines[l].length)^2) * 
-                                        model[:I_sqr_k][t, l, k] for k in K) - 
-                                        M * (1 - model[:Y][l])
-
-                        #[l = L, t = T], [V_sqr[line_ends[l][1], t] / 2; sum(I_sqr_k[l, k, t] for k in K); sum(P_ij_k[l, k, t] for k in K); sum(Q_ij_k[l, k, t] for k in K)] in RotatedSecondOrderCone()
-                        [l = L, t = T], V_sqr[line_ends[l][1], t] * sum(I_sqr_k[l, k, t] for k in K) == sum(P_ij_k[l, k, t] for k in K)^2 + sum(Q_ij_k[l, k, t] for k in K)^2
-                        end
-    )
     return 
+end
+
+# ---------------------------------------------------------------------------- #
+#                        Conductor choice constraints                          #
+# ---------------------------------------------------------------------------- #
+# ---------------------------------------------------------------------------- #
+#                               Radiality constraints                          #
+# ---------------------------------------------------------------------------- #
+function _add_RadialityConstraints!(model::JuMP.AbstractModel, 
+                                    topology_choice::TopologyChoiceFormulation,
+                                    graph_type::TypeOfGraph,
+                                    ::RadialityFormulation)::Nothing
+
+    
+    return
 end

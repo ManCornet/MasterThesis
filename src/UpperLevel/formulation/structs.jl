@@ -39,7 +39,7 @@ struct Formulation
     powerflow::PowerFlowFormulation 
     production::TypeofProdFormulation
     radiality::RadialityFormulation
-    choice_topology::TopologyChoiceFormulation
+    topology_choice::TopologyChoiceFormulation
     graph_type::TypeOfGraph
     convexity::ConvexityFormulation
     v_constraints::VoltageConstraintsFormulation
@@ -50,13 +50,13 @@ struct Formulation
         powerflow::PowerFlowFormulation = BFM(),
         production::TypeofProdFormulation = NoDG(),
         radiality::RadialityFormulation = SingleCommodityFlow(),
-        choice_topology::TopologyChoiceFormulation = OneConfig(),
+        topology_choice::TopologyChoiceFormulation = OneConfig(),
         graph_type::TypeOfGraph = Undirected(),
         convexity::ConvexityFormulation = Convex(),
         v_constraints::VoltageConstraintsFormulation = StrongVoltages(),
         i_constraints::CurrentConstraintsFormulation = RelaxedCurrents(),
         )                     
-        return new(powerflow, production, radiality, choice_topology, graph_type, 
+        return new(powerflow, production, radiality, topology_choice, graph_type, 
                     convexity, v_constraints, i_constraints)
     end
 end

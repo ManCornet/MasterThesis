@@ -296,8 +296,9 @@ struct Simulation
     delta_t::Float64
 
     function Simulation(network::Network,network_topology::NetworkTopology, DSO_costs::DSOCosts, User_costs::UserCosts)
-        nb_time_steps = get_nb_time_steps(network.load_buses[1].load_profile)
-        delta_t       = network.load_buses[1].load_profile.granularity
+        Ns = get_nb_substations(network)
+        nb_time_steps = get_nb_time_steps(network.buses[Ns + 1].load_profile)
+        delta_t       = network.buses[Ns + 1].load_profile.granularity
         return new(network, network_topology, DSO_costs, User_costs, nb_time_steps, delta_t)
     end
 end
@@ -322,6 +323,13 @@ function get_nb_lines(n::Network)
     return n.nb_lines
 end
 
+function get_nb_nodes(t::NetworkTopology)
+    return length(t.nodes)
+end
+
+function get_nb_time_steps(p::Profile)
+    return length(p.time_serie)
+end
 
 StructTypes.StructType(::Type{NetworkTopology}) = StructTypes.Mutable()
 function save(R::NetworkTopology, filename::String)

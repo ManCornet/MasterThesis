@@ -109,29 +109,73 @@ function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::T
     L = get_nb_lines(network_data)
     K = get_nb_conductors(network_data)
     
+    index = isa(topology_choice, OneConfig) ? (1:L) : (1:T, 1:L)
+
     JuMP.@variables(model,   
                     begin 
-                        Alpha[compute_index((1:L, 1:K), 1:T, topology_choice)...], (binary = true)
-                        Y[compute_index((1:L), 1:T, topology_choice)...], (binary = true) 
+                        Alpha[1:L, 1:K], (binary = true)
+                        Y[index], (binary = true) 
                     end
                     )
+    
+    if isa(topology_choice, OneConfig) 
+        JuMP.@constraints(  model, 
+                            begin
+                                [l=1:L], sum(Alpha[l, k] for k in 1:K) == Y_send[l] + Y_send[l] 
+                                sum(Y_send[l] + Y_rec[l] for l in L) == Nu 
+                            end
+                        )
+                        
+    elseif isa(topology_choice, ReconfigAllowed)
+        JuMP.@constraints(  model, 
+                            begin
+                                [t=1:T, l=1:L], sum(Alpha[l, k] for k in 1:K) == Y_send[t, l] + Y_send[t, l] 
+                                sum(Y_send[t, l] + Y_rec[t, l] for l in L) == Nu 
+                            end
+                        )
+    end
     return
 end
 
 function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::TopologyChoiceFormulation, ::Directed)
-
+    
     network_data = model[:network_data]
     T = model[:time_steps]
     L = get_nb_lines(network_data)
     K = get_nb_conductors(network_data)
 
+    index = isa(topology_choice, OneConfig) ? (1:L) : (1:T, 1:L)
+
     JuMP.@variables(model,   
                     begin 
-                        Alpha[compute_index((1:L, 1:K), 1:T, topology_choice)...], (binary = true)
-                        Y_send[compute_index((1:L), 1:T, topology_choice)...], (binary = true)  
-                        Y_rec[compute_index((1:L), 1:T, topology_choice)...], (binary = true)  
+                        Alpha[1:L, 1:K], (binary = true)
+                        Y_send[index], (binary = true)  
+                        Y_rec[index], (binary = true)  
                     end
                     )
+                    
+
+    # If one line has been built (always select the same conductor for all time_steps)
+    # Add the constraints linking alpha and other constraints
+
+    # Add the links between
+    if isa(topology_choice, OneConfig) 
+        JuMP.@constraints(  model, 
+                            begin
+                                [l=1:L], sum(Alpha[l, k] for k in 1:K) == Y_send[l] + Y_send[l] 
+                                sum(Y_send[l] + Y_rec[l] for l in L) == Nu 
+                            end
+                        )
+
+    elseif isa(topology_choice, ReconfigAllowed)
+        JuMP.@constraints(  model, 
+                            begin
+                                [t=1:T, l=1:L], sum(Alpha[l, k] for k in 1:K) == Y_send[t, l] + Y_send[t, l] 
+                                sum(Y_send[t, l] + Y_rec[t, l] for l in L) == Nu 
+                            end
+                        )
+    end
+   
     return
 end
 
@@ -152,8 +196,7 @@ function _add_RadialityVariables!(model::JuMP.AbstractModel, topology_choice::To
     T = model[:time_steps]
     L = get_nb_lines(network_data)
 
-    JuMP.@variable(model, k_ij[compute_index((1:L), 1:T, topology_choice)...])
-
+    JuMP.@variable(model, k_ij[compute_index((1:L), 1:T, topology_choice)])
     return
 end
 

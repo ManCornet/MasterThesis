@@ -154,19 +154,20 @@ function get_network_data(  NETWORK_PATH::String;
     edges, lines, nb_lines = get_lines_data(NETWORK_PATH, nodes)
     conductors, nb_conductors = get_conductors_data(NETWORK_PATH, pu_basis, money_basis)
 
-    return  Network(lines, buses, conductors, nb_sub, nb_loads, nb_lines, nb_conductors, nb pu_basis), 
+    return  Network(lines, buses, conductors, nb_sub, nb_loads, nb_lines, nb_conductors, pu_basis), 
             NetworkTopology(nodes, edges)
 end
 
 function add_load_profiles!(network::Network, load_profiles::Matrix{Float64}; delta_t::Integer, pu_basis::PU_BASIS)
-    nb_users = get_nb_load_bus(network)
+    Nu = get_nb_loads(network)
+    Ns = get_nb_substations(network)
     _, nb_profiles = size(load_profiles)
 
-    @assert nb_users == nb_profiles
+    @assert Nu == nb_profiles
     
-    for u in 1:nb_users
+    for u in 1:Nu
         p = Profile(load_profiles[:, u] ./ pu_basis.base_power, delta_t)
-        network.load_buses[u].load_profile = p
+        network.buses[Ns + u].load_profile = p
     end
 
     return 
@@ -178,14 +179,15 @@ function add_PV_profiles!(  network::Network,
                             PQ_diagram::PQ_DIAGRAM,
                             delta_t::Integer)
 
-    nb_users = length(id_users)
+  
+    Ns = get_nb_substations(network)
     _, nb_profiles = size(PV_profiles)
 
-    @assert nb_users == nb_profiles
+    @assert length(id_users) == nb_profiles
 
     for (index, u) in enumerate(id_users)
         p = Profile(PV_profiles[:, index], delta_t)
-        network.load_buses[u].PV_installation = PV(p, PQ_diagram)
+        network.buses[Ns + u].PV_installation = PV(p, PQ_diagram)
     end
     return
 end
@@ -215,27 +217,27 @@ function print_network_topology(topology::NetworkTopology; save_graph::Bool=true
     # -- Plotting the graph topology --
 
     #node_shapes = [[subs_nodeshape for _ in Ns];[house_nodeshape for _ in Nu]]
-    colors      = ["#689BAA", "#C2C5DB"]
+    colors   = ["#689BAA", "#C2C5DB"]
     x_coords = [n.coord.x for n in topology.nodes]
     y_coords = [n.coord.y for n in topology.nodes]
 
     graph = graphplot( adjacency_matrix(g),
                         x               = x_coords,           # x-coordinate of the nodes
                         y               = y_coords,                                 # y-coordinate of the nodes
-                        nodesize        = 0.1,
+                        nodesize        = 0.05,
                         nodestrokewidth = 0,                                        # coutour line width of the node
                         edgestyle       = :solid,
                         nodealpha       = 1,                                        # transparency of node color
-                        names           = [L"\textbf{%$(node.id)}" for node in topology.nodes],                        # node label
+                        names           = ["$(node.id)" for node in topology.nodes],                        # node label
                         nodeshape       = :rect,                              # :circle, :ellipse, :hexagon
                         nodecolor       = colors[[1 for _ in topology.nodes]],
                         linewidth       = 1,
                         arrow           = false,
-                        edgelabel       = Dict((e.from_node.id, e.to_node.id) =>  L"\textbf{%$(e.id)}" for e in topology.edges),
+                        edgelabel       = Dict((e.from_node.id, e.to_node.id) =>  "$(e.id)" for e in topology.edges),
                         axis_buffer     = 0.1,
-                        fontsize        = 10,
-                        size            = (1200, 1000),
-                        edgelabel_offset= 0.1,
+                        fontsize        = 13,
+                        size            = (1000, 1000),
+                        edgelabel_offset= 0.01,
                         curves          = false,                                    # if an edge is curved or not
     )
 

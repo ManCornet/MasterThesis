@@ -221,7 +221,7 @@ NETWORK_PATH = joinpath(network_data_dir, "model_2S2H.xlsx")
 pu_basis = define_pu_basis()
 # -- Fetching the network data --
 network, network_topology = get_network_data(NETWORK_PATH;max_pv_capa=PV_capa, pu_basis=pu_basis)
-# print_network_topology(network_topology)
+#print_network_topology(network_topology)
 # save(network_topology, "network_topology.json")
 # save(network_data, "network_data.json")
 
@@ -238,7 +238,7 @@ PROFILE_PATHS = [SUMMER_LOAD_PATH, WINTER_LOAD_PATH]
 
 base_daily_profiles = Vector{Matrix{Float64}}()
 for path in PROFILE_PATHS 
-    base_daily_profile, _ = build_daily_load_profiles(path, get_nb_load_bus(network))
+    base_daily_profile, _ = build_daily_load_profiles(path, get_nb_loads(network))
     push!(base_daily_profiles, base_daily_profile * 1e-3 / network.pu_basis.base_power)
 end
 
@@ -258,7 +258,7 @@ scaling_EV  = [1.0, 1.0]
 daily_profiles = Vector{Matrix{Float64}}()
 for (index, path) in enumerate(PROFILE_PATHS)
     daily_profile, _ = build_daily_load_profiles(  path, 
-                                                get_nb_load_bus(network);
+                                                get_nb_loads(network);
                                                 nb_agg_periods=nb_agg_periods,
                                                 EV=EV, 
                                                 EHP=EHP,
@@ -287,7 +287,7 @@ add_load_profiles!(network, load_profiles; delta_t=delta_t, pu_basis=pu_basis)
 # =========================== PV profiles  ==============================
 PV_PATH = joinpath(profiles_data_dir, "Summer_PV_Profiles.xlsx")
 scaling_PV = [1.0, 0.1]
-nb_PV_profiles = floor(Int, PV_pen * get_nb_load_bus(network))
+nb_PV_profiles = floor(Int, PV_pen * get_nb_loads(network))
 @assert length(scaling_PV) == nb_days
 
 daily_PV_profiles = Vector{Matrix{Float64}}()
@@ -323,7 +323,17 @@ User_costs = UserCosts(PV_cost, PV_conv_cost, EIC, EEC, DSOEC, DSOEC, GCC, amort
 # -- Running the model -- 
 
 simulation  = Simulation(network, network_topology, DSO_costs, User_costs)
-upper_model = build_model(simulation; formulation=Formulation(choice_topology=ReconfigAllowed(), graph_type=Directed()))
+formulation = Formulation(powerflow= BFM(),
+                            production= DG(),
+                            radiality= SingleCommodityFlow(),
+                            topology_choice= OneConfig(),
+                            graph_type= Undirected(),
+                            convexity= Convex(),
+                            v_constraints= StrongVoltages(),
+                            i_constraints= StrongCurrents(),
+                            )
+                            
+upper_model = build_model(simulation; formulation=formulation)
 
 
 # -- Run a simulation of the model --

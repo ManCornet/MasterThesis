@@ -38,8 +38,8 @@ set_optimizer_attribute(model, "NonConvex", 2) # set this to test conic constrai
     #P_ij[L, T], (container = Array)
     #Q_ij[L, T], (container = Array)
     S_sub_capa[Ns] >= 0, (container = Array)
-    Y[L], (container=Array, binary=true)
-    Alpha[L, K], (container=Array, binary=true)
+    Y[L, T], (container=Array, binary=true)
+    Alpha[L, K], (container=Array, binary=true) # rechange here: remove the T
     Beta[Ns], (container = Array, binary=true)
     Curr_limit[L, K, T], (container=Array, binary=true)
     Slack[L, K, T], (container = Array)
@@ -49,7 +49,7 @@ set_optimizer_attribute(model, "NonConvex", 2) # set this to test conic constrai
 end)
 if ACTIVATE_RADIALITY_CONSTRAINTS
     # SINGLE COMMODITY FLOW VARIABLE
-    @variable(UPPER_MODEL, k_ij[L], container = Array)
+    @variable(UPPER_MODEL, k_ij[L, T], container = Array)
 end
 @variables(LOWER_MODEL, begin
     p_imp[N, T] >= 0, (container = Array) # active power imported at time t
@@ -149,8 +149,8 @@ end
     [l = L, k = K, t = T], Q_ij_k[l, k, t] >= -MAX_CURRENT[l, k] * MAX_VOLTAGE * Alpha[l, k] # indispensable
 
     # Substation apparent power limits
-    #[i = Ns, t = T], [S_sub[i, t]; P_sub[i, t]; Q_sub[i, t]] in SecondOrderCone()
-    [i = Ns, t = T], S_sub[i, t]^2 ==  P_sub[i, t]^2 + Q_sub[i, t]^2
+    [i = Ns, t = T], [S_sub[i, t]; P_sub[i, t]; Q_sub[i, t]] in SecondOrderCone()
+    #[i = Ns, t = T], S_sub[i, t]^2 ==  P_sub[i, t]^2 + Q_sub[i, t]^2
     [i = Ns, t = T], S_sub[i, t] <= S_rating_init[i] + S_sub_capa[i]
     [i = Ns], S_sub_capa[i] <= Beta[i] * S_rating_max[i]
 
@@ -164,43 +164,43 @@ end
     #[t in T], sum(Q_sub[i, t] for i in Ns) + sum(q_exp[i, t] - q_imp[i, t] for i in Nu) >= 0
 
     # Radiality constraint
-    [l = L], sum(Alpha[l, k] for k in K) == Y[l]
-    [t in T], sum(Y[l] for l in L) == Nu_size
+    [l = L, t = T], sum(Alpha[l, k] for k in K) == Y[l, t]
+    [t in T], sum(Y[l, t] for l in L) == Nu_size
 
     # Bound on s_grid_max
     #[i=Nu], s_grid_max[i] <= sum(MAX_CURRENT[l, k] * MAX_VOLTAGE * Alpha[l, k] for l in Omega_receiving[i], k in K) + 
     #                        sum(MAX_CURRENT[l, k] * MAX_VOLTAGE * Alpha[l, k] for l in Omega_sending[i], k in K) # NEW : doesn't change anything to the solution except faster !
 end)
 if ACTIVATE_RADIALITY_CONSTRAINTS
-    @constraint(UPPER_MODEL, single_comm_constr1[i=Nu],
-        -sum(k_ij[l] for l in Omega_receiving[i])
+    @constraint(UPPER_MODEL, single_comm_constr1[i=Nu, t=T],
+        -sum(k_ij[l, t] for l in Omega_receiving[i])
         +
-        sum(k_ij[l] for l in Omega_sending[i]) == -1)
+        sum(k_ij[l, t] for l in Omega_sending[i]) == -1)
 
-    @constraint(UPPER_MODEL, single_comm_constr2[i=Ns],
-        -sum(k_ij[l] for l in Omega_receiving[i])
+    @constraint(UPPER_MODEL, single_comm_constr2[i=Ns, t=T],
+        -sum(k_ij[l, t] for l in Omega_receiving[i])
         +
-        sum(k_ij[l] for l in Omega_sending[i]) >= 0)
+        sum(k_ij[l, t] for l in Omega_sending[i]) >= 0)
 
-    @constraint(UPPER_MODEL, single_comm_constr3[i=Ns_init],
-        -sum(k_ij[l] for l in Omega_receiving[i])
+    @constraint(UPPER_MODEL, single_comm_constr3[i=Ns_init,t=T],
+        -sum(k_ij[l, t] for l in Omega_receiving[i])
         +
-        sum(k_ij[l] for l in Omega_sending[i]) <= Nu_size)
+        sum(k_ij[l, t] for l in Omega_sending[i]) <= Nu_size)
 
 
-    @constraint(UPPER_MODEL, single_comm_constr5[i=Ns_notinit],
-        -sum(k_ij[l] for l in Omega_receiving[i])
+    @constraint(UPPER_MODEL, single_comm_constr5[i=Ns_notinit,t=T],
+        -sum(k_ij[l,t] for l in Omega_receiving[i])
         +
-        sum(k_ij[l] for l in Omega_sending[i]) <= Nu_size * Beta[i])
+        sum(k_ij[l,t] for l in Omega_sending[i]) <= Nu_size * Beta[i])
 
     @constraint(UPPER_MODEL,
-        single_comm_constr6[l=L],
-        k_ij[l] <= Nu_size * Y[l]
+        single_comm_constr6[l=L,t=T],
+        k_ij[l,t] <= Nu_size * Y[l,t]
     )
 
     @constraint(UPPER_MODEL,
-        single_comm_constr7[l=L],
-        k_ij[l] >= -Nu_size * Y[l]
+        single_comm_constr7[l=L,t=T],
+        k_ij[l,t] >= -Nu_size * Y[l,t]
     )
 
 end

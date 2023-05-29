@@ -31,18 +31,19 @@ function build_model(   simulation::Simulation;
         # =========================== Build the model =========================
         # -- Add the variables of the model --
         _add_BusVariables!(model, formulation.production)
-        _add_BranchVariables!(model, formulation.powerflow)
-        _add_CondChoiceVariables!(model, formulation.choice_topology, formulation.graph_type)
+        #_add_BranchVariables!(model, formulation.powerflow)
+        #_add_CondChoiceVariables!(model, formulation.choice_topology, formulation.graph_type)
 
-        _add_RefVoltages!(model)
-        _add_LoadOverSatisfaction!(model, formulation.production)
-        _add_SubstationConstraints!(model, formulation.convexity)
-        _add_CurrentOpConstraints!(model, formulation.i_constraints, formulation.choice_topology)
-        _add_VoltageOpConstraints!(model, formulation.v_constraints)
-        _add_PowerBalanceConstraints!(model, formulation.powerflow, formulation.production)
+        #_add_RefVoltages!(model)
+        #_add_LoadOverSatisfaction!(model, formulation.production)
+        #_add_SubstationConstraints!(model, formulation.convexity)
+        #_add_CurrentOpConstraints!(model, formulation.i_constraints, formulation.choice_topology)
+        #_add_VoltageOpConstraints!(model, formulation.v_constraints)
+        #_add_PowerBalanceConstraints!(model, formulation.powerflow, formulation.production)
 
         #_add_PowerFlowEqs!(model, formulation.powerflow, formulation.networkgraph, formulation.condvars)
 
+   
 
 
 
@@ -51,6 +52,8 @@ function build_model(   simulation::Simulation;
 
     @info @sprintf("Built model in %.2f seconds", time_model)
     
+    print(model)
+    display(JuMP.all_variables(model))
 
     return model
 end
