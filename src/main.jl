@@ -218,7 +218,7 @@ profiles_data_dir = joinpath(root_dir, "ManchesterData", "LCT_profiles")
 # Add choice for the test network
 # NETWORK_PATH = joinpath(network_data_dir, "network_Nahman_Peric_2S23H.xlsx") 
 NETWORK_PATH = joinpath(network_data_dir, "model_2S2H.xlsx") 
-#pu_basis = define_pu_basis(;BASE_POWER = 1.0, BASE_VOLTAGE=10.0)
+pu_basis = define_pu_basis()
 # -- Fetching the network data --
 network, network_topology = get_network_data(NETWORK_PATH;max_pv_capa=PV_capa, pu_basis=pu_basis)
 # print_network_topology(network_topology)
@@ -322,7 +322,7 @@ User_costs = UserCosts(PV_cost, PV_conv_cost, EIC, EEC, DSOEC, DSOEC, GCC, amort
 # =========================== Model  ===========================
 # -- Running the model -- 
 
-simulation  = Simulation(network, DSO_costs, User_costs)
+simulation  = Simulation(network, network_topology, DSO_costs, User_costs)
 upper_model = build_model(simulation; formulation=Formulation(choice_topology=ReconfigAllowed(), graph_type=Directed()))
 
 

@@ -22,6 +22,7 @@ function build_model(   simulation::Simulation;
         end
 
         model[:network_data] = simulation.network
+        model[:network_topology] = simulation.network_topology
         model[:DSO_costs]    = simulation.DSO_costs 
         model[:User_costs]   = simulation.User_costs 
         model[:time_steps]   = 1 #simulation.nb_time_steps ATTENTION PUT BACK TO NB TIME STEPS
@@ -38,6 +39,7 @@ function build_model(   simulation::Simulation;
         _add_SubstationConstraints!(model, formulation.convexity)
         _add_CurrentOpConstraints!(model, formulation.i_constraints, formulation.choice_topology)
         _add_VoltageOpConstraints!(model, formulation.v_constraints)
+        _add_PowerBalanceConstraints!(model, formulation.powerflow, formulation.production)
 
         #_add_PowerFlowEqs!(model, formulation.powerflow, formulation.networkgraph, formulation.condvars)
 

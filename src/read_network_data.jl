@@ -73,7 +73,7 @@ function get_buses_data(NETWORK_PATH::String, V_limits::VLIM, pu_basis::PU_BASIS
     sub_buses = [Substation(nodes[i], V_limits, convert(Float64, df_bus.S_G_max_mva[i]) / pu_basis.base_power) for i in 1:Ns]
     load_buses = [User(nodes[i], V_limits, max_pv_capa / pu_basis.base_power) for i in Ns+1:N]
 
-    return nodes, sub_buses, load_buses
+    return nodes, [sub_buses; load_buses], Ns, Nu
 end
 
 """ get_lines_data 
@@ -98,7 +98,7 @@ function get_lines_data(NETWORK_PATH::String, nodes::Vector{Node})
     # Get all the lines
     lines = [Line(edges[l], convert(Float64, df_line.length_km[l])) for l in 1:L]
     
-    return edges, lines
+    return edges, lines, L
 end
 
 """ get_conductors_data 
@@ -126,7 +126,7 @@ function get_conductors_data(NETWORK_PATH::String, pu_basis::PU_BASIS, money_bas
                         ) 
             for k in 1:K]
 
-    return conds
+    return conds, K
 end
 
 
@@ -150,11 +150,11 @@ function get_network_data(  NETWORK_PATH::String;
                             money_basis::Float64=1.0
                             )
     
-    nodes, sub_buses, load_buses = get_buses_data(NETWORK_PATH, voltage_limits, pu_basis, max_pv_capa)
-    edges, lines = get_lines_data(NETWORK_PATH, nodes)
-    conductors = get_conductors_data(NETWORK_PATH, pu_basis, money_basis)
+    nodes, buses, nb_sub, nb_loads = get_buses_data(NETWORK_PATH, voltage_limits, pu_basis, max_pv_capa)
+    edges, lines, nb_lines = get_lines_data(NETWORK_PATH, nodes)
+    conductors, nb_conductors = get_conductors_data(NETWORK_PATH, pu_basis, money_basis)
 
-    return  Network(lines, sub_buses, load_buses, conductors, pu_basis), 
+    return  Network(lines, buses, conductors, nb_sub, nb_loads, nb_lines, nb_conductors, nb pu_basis), 
             NetworkTopology(nodes, edges)
 end
 

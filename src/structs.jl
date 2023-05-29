@@ -91,6 +91,22 @@ end
 mutable struct NetworkTopology
     nodes::Vector{Node}
     edges::Vector{Edge} # contains the substation buses
+    sending_lines::Dict{Int64, Vector{Int64}}
+    receiving_lines::Dict{Int64, Vector{Int64}}
+    function NetworkTopology(nodes::Vector{Node}, edges::Vector{Edge})
+
+        N = length(nodes)
+        sending_lines = Dict(n => Vector{Int64}() for n in 1:N)
+        receiving_lines = Dict(n => Vector{Int64}() for n in 1:N)
+
+        for e in edges 
+            push!(sending_lines[e.from_node.id], e.id)
+            push!(receiving_lines[e.to_node.id], e.id)
+        end
+
+        return new(nodes, edges, sending_lines, receiving_lines)
+    end
+
 end
 
 #------------------------------------ 2. -------------------------------------#
@@ -191,20 +207,20 @@ end
 
 mutable struct Line
     edge::Edge
-    line_length::Float64   # in km
+    length::Float64   # in km
     built::Bool
-    line_cost::Union{Nothing, Float64}
+    cost::Union{Nothing, Float64}
     conductor::Union{Nothing, Conductor}       # the conductor that was chosen
     I_magn::Union{Nothing, Float64}            # in kA the magnitude of the current 
     P_send::Union{Nothing, Float64}            # P flowing at sending end of the line
     Q_send::Union{Nothing, Float64}            # Q flowing at sending end of the line
 
-    function Line(edge::Edge, line_length::Float64) 
-        if  line_length < 0 
+    function Line(edge::Edge, length::Float64) 
+        if  length < 0 
             throw(DomainError("""[Line]: The length of a line cannot be negative."""))
         end
         
-        return new(edge, line_length, false, nothing, nothing, nothing, nothing, nothing) 
+        return new(edge, length, false, nothing, nothing, nothing, nothing, nothing) 
     end
 end
 
@@ -229,9 +245,14 @@ PU_BASIS = NamedTuple{(:base_power, :base_voltage, :base_current, :base_impedanc
 """
 mutable struct Network
     lines::Vector{Line}
-    sub_buses::Vector{Substation} # contains the substation buses
-    load_buses::Vector{User} # contains the load buses
+    buses::Vector{Bus}
+    #sub_buses::Vector{Substation} # contains the substation buses
+    #load_buses::Vector{User} # contains the load buses
     conductors::Vector{Conductor}
+    nb_substations::Int64 
+    nb_loads::Int64 
+    nb_lines::Int64
+    nb_conductors::Int64
     pu_basis::PU_BASIS
 end
 
@@ -268,15 +289,16 @@ end
 #-----------------------------------------------------------------------------#
 struct Simulation 
     network::Network
+    network_topology::NetworkTopology
     DSO_costs::DSOCosts 
     User_costs::UserCosts
     nb_time_steps::Int64
     delta_t::Float64
 
-    function Simulation(network::Network, DSO_costs::DSOCosts, User_costs::UserCosts)
+    function Simulation(network::Network,network_topology::NetworkTopology, DSO_costs::DSOCosts, User_costs::UserCosts)
         nb_time_steps = get_nb_time_steps(network.load_buses[1].load_profile)
         delta_t       = network.load_buses[1].load_profile.granularity
-        return new(network, DSO_costs, User_costs, nb_time_steps, delta_t)
+        return new(network, network_topology, DSO_costs, User_costs, nb_time_steps, delta_t)
     end
 end
 
@@ -284,41 +306,22 @@ end
 #                         Additionnal functions                               #
 #-----------------------------------------------------------------------------#
 
-function get_nb_load_bus(d::Network)
-    return length(d.load_buses)
+function get_nb_loads(n::Network)
+    return n.nb_loads
 end
 
-function get_load_buses(d::Network)
-    return d.load_buses
+function get_nb_substations(n::Network)
+    return n.nb_substations
 end
 
-function get_nb_sub_bus(d::Network)
-    return length(d.sub_buses)
+function get_nb_buses(n::Network)
+    return n.nb_substations + n.nb_loads
 end
 
-function get_nb_bus(d::Network)
-    return length(d.load_buses) + length(d.sub_buses)
+function get_nb_lines(n::Network)
+    return n.nb_lines
 end
 
-function get_nb_lines(d::Network)
-    return length(d.lines)
-end
-
-function get_nb_conductors(d::Network)
-    return length(d.conductors)
-end
-
-function get_nb_nodes(t::NetworkTopology)
-    return length(t.nodes)
-end
-
-function get_nb_time_steps(p::Profile)
-    return length(p.time_serie)
-end
-
-function get_granularity(p::Profile)
-    return length(p.time_serie)
-end
 
 StructTypes.StructType(::Type{NetworkTopology}) = StructTypes.Mutable()
 function save(R::NetworkTopology, filename::String)

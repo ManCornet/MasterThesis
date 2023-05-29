@@ -5,8 +5,8 @@ function _add_BusVariables!(model::JuMP.AbstractModel, ::NoDG)::Nothing
 
     network_data = model[:network_data]
     T  = model[:time_steps]
-    N  = get_nb_bus(network_data)
-    Ns = get_nb_sub_bus(network_data)
+    N  = get_nb_buses(network_data)
+    Ns = get_nb_substations(network_data)
 
     JuMP.@variables(model,   
                     begin 
@@ -25,9 +25,9 @@ function _add_BusVariables!(model::JuMP.AbstractModel, ::DG)::Nothing
 
     network_data = model[:network_data]
     T  = model[:time_steps]
-    N  = get_nb_bus(network_data)
-    Ns = get_nb_sub_bus(network_data)
-    Nu = get_nb_load_bus(network_data)
+    N  = get_nb_buses(network_data)
+    Ns = get_nb_substations(network_data)
+    Nu = get_nb_loads(network_data)
 
     JuMP.@variables(model,   
                     begin 
@@ -61,7 +61,7 @@ function _add_BranchVariables!(model::JuMP.AbstractModel, ::BIM)::Nothing
     T = model[:time_steps]
     L = get_nb_lines(network_data)
     K = get_nb_conductors(network_data)
-    N = get_nb_bus(network_data)
+    N = get_nb_buses(network_data)
 
     JuMP.@variables(model,   
                     begin 
@@ -73,8 +73,6 @@ function _add_BranchVariables!(model::JuMP.AbstractModel, ::BIM)::Nothing
                         X_ij_k_re[1:T, 1:L, 1:K] >= 0
                         X_ij_k_im[1:T, 1:L, 1:K]
                         I_sqr_k[1:T, 1:L, 1:K]
-                        Alpha[1:L, 1:K], (binary = true)
-                        Y[1:L], (binary = true) 
                     end
                     )
     return
@@ -100,22 +98,27 @@ end
 # ---------------------------------------------------------------------------- #
 #                          Conductor choice variables                          #
 # ---------------------------------------------------------------------------- #
-function _add_CondChoiceVariables!(model::JuMP.AbstractModel, ::OneConfig, ::Undirected)
+Vararg_Tuple{T} = Tuple{Vararg{T}}
+compute_index(index::Vararg_Tuple{T}, t::T, ::OneConfig) where {T} = index
+compute_index(index::Vararg_Tuple{T}, t::T, ::ReconfigAllowed) where {T} = (t, index...)
 
+function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::TopologyChoiceFormulation, ::Undirected)
+
+    T = model[:time_steps]
     network_data = model[:network_data]
     L = get_nb_lines(network_data)
     K = get_nb_conductors(network_data)
-
+    
     JuMP.@variables(model,   
                     begin 
-                        Alpha[1:L, 1:K], (binary = true)
-                        Y[1:L], (binary = true) 
+                        Alpha[compute_index((1:L, 1:K), 1:T, topology_choice)...], (binary = true)
+                        Y[compute_index((1:L), 1:T, topology_choice)...], (binary = true) 
                     end
                     )
     return
 end
 
-function _add_CondChoiceVariables!(model::JuMP.AbstractModel, ::ReconfigAllowed, ::Undirected)
+function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::TopologyChoiceFormulation, ::Directed)
 
     network_data = model[:network_data]
     T = model[:time_steps]
@@ -124,47 +127,13 @@ function _add_CondChoiceVariables!(model::JuMP.AbstractModel, ::ReconfigAllowed,
 
     JuMP.@variables(model,   
                     begin 
-                        Alpha[1:T, 1:L, 1:K], (binary = true)
-                        Y[1:T, 1:L], (binary = true) 
+                        Alpha[compute_index((1:L, 1:K), 1:T, topology_choice)...], (binary = true)
+                        Y_send[compute_index((1:L), 1:T, topology_choice)...], (binary = true)  
+                        Y_rec[compute_index((1:L), 1:T, topology_choice)...], (binary = true)  
                     end
                     )
     return
 end
-
-function _add_CondChoiceVariables!(model::JuMP.AbstractModel, ::OneConfig, ::Directed)
-
-    network_data = model[:network_data]
-    T = model[:time_steps]
-    L = get_nb_lines(network_data)
-    K = get_nb_conductors(network_data)
-
-    JuMP.@variables(model,   
-                    begin 
-                        Alpha[1:L, 1:K], (binary = true)
-                        Y_send[1:L], (binary = true)  
-                        Y_rec[1:L], (binary = true)  
-                    end
-                    )
-    return
-end
-
-function _add_CondChoiceVariables!(model::JuMP.AbstractModel, ::ReconfigAllowed, ::Directed)
-
-    network_data = model[:network_data]
-    T = model[:time_steps]
-    L = get_nb_lines(network_data)
-    K = get_nb_conductors(network_data)
-
-    JuMP.@variables(model,   
-                    begin 
-                        Alpha[1:T, 1:L, 1:K], (binary = true)
-                        Y_send[1:T, 1:L], (binary = true)  
-                        Y_rec[1:T, 1:L], (binary = true)  
-                    end
-                    )
-    return
-end
-
 
 # ---------------------------------------------------------------------------- #
 #                          Radiality variables                                 #
@@ -177,24 +146,13 @@ end
 # 3° SpanningTree constraints (called like that by Jabr what is the real name of that ?)
 #    => parent child relation ship
 # 4° + for each allow the version with reconfiguration etc
-function _add_RadialityVariables!(model::JuMP.AbstractModel, ::OneConfig, ::SingleCommodityFlow)::Nothing 
+function _add_RadialityVariables!(model::JuMP.AbstractModel, topology_choice::TopologyChoiceFormulation, ::SingleCommodityFlow)::Nothing 
 
     network_data = model[:network_data]
     T = model[:time_steps]
     L = get_nb_lines(network_data)
 
-    JuMP.@variable(model, k_ij[1:L])
-
-    return
-end
-
-function _add_RadialityVariables!(model::JuMP.AbstractModel, ::ReconfigAllowed, ::SingleCommodityFlow)::Nothing 
-
-    network_data = model[:network_data]
-    T = model[:time_steps]
-    L = get_nb_lines(network_data)
-
-    JuMP.@variable(model, k_ij[1:T, 1:L])
+    JuMP.@variable(model, k_ij[compute_index((1:L), 1:T, topology_choice)...])
 
     return
 end

@@ -83,6 +83,22 @@ end
 mutable struct NetworkTopology
     nodes::Vector{Node}
     edges::Vector{Edge} # contains the substation buses
+    Omega_sending::Dict{Vector}
+    Omega_receiving::Dict{Vector}
+    function NetworkTopology(nodes::Vector{Node}, edges::Vector{Edge})
+
+        N = length(nodes)
+        Omega_sending = Dict(n => Vector{Int64}() for n in N)
+        Omega_receiving = Dict(n => Vector{Int64}() for n in N)
+
+        for e in edges 
+            push!(Omega_sending[e.from_node.id], e.id)
+            push!(Omega_receiving[e.to_node.id], e.id)
+        end
+
+        return new(nodes, edges, Omega_sending, Omega_receiving)
+    end
+
 end
 
 #------------------------------------ 2. -------------------------------------#
