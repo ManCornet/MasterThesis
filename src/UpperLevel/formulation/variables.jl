@@ -28,6 +28,7 @@ function _add_BusVariables!(model::JuMP.AbstractModel, ::DG)::Nothing
     N  = get_nb_buses(network_data)
     Ns = get_nb_substations(network_data)
     Nu = get_nb_loads(network_data)
+    buses = network_data.buses
 
     JuMP.@variables(model,   
                     begin 
@@ -47,7 +48,10 @@ function _add_BusVariables!(model::JuMP.AbstractModel, ::DG)::Nothing
     # (2 config: strong constraints or relaxed version)
     
     # load_buses = get_load_buses(network_data)
-    #JuMP.@constraint(model, [i = 1:Nu], p_pv_max[i] <= load_buses[i].max_pv_capa)
+    for i in 1:Nu
+        JuMP.set_upper_bound(model[:p_pv_max][i], buses[Ns + i].max_pv_capa)
+    end
+ 
     return
 end
 
@@ -83,7 +87,7 @@ function _add_BranchVariables!(model::JuMP.AbstractModel, ::BIM)::Nothing
         if i in (ifrom, ito) 
             continue
         else
-            fix(X_ij_k_i[t, l, k, i], 0.0; force=true)
+            JuMP.fix(X_ij_k_i[t, l, k, i], 0.0; force=true)
         end
     end
     return

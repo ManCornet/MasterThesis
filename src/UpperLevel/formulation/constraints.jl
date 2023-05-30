@@ -515,6 +515,7 @@ end
 # I AM HERE : ERROR WITH PV_PROD
 function _add_PVOperationConstraints!(model::JuMP.AbstractModel)::Nothing
     network_data = model[:network_data]
+    T  = model[:time_steps]
     Nu = get_nb_loads(network_data)
     Ns = get_nb_substations(network_data)
     PV_prod = [network_data.buses[Ns + i].PV_installation.profile.time_serie for i in 1:Nu]
