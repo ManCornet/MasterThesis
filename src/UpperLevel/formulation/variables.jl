@@ -75,6 +75,17 @@ function _add_BranchVariables!(model::JuMP.AbstractModel, ::BIM)::Nothing
                         I_sqr_k[1:T, 1:L, 1:K]
                     end
                     )
+
+    for t in 1:T, l in 1:L, k in 1:K, i in 1:N 
+        ifrom = network_data.lines[l].edge.from_node.id
+        ito   = network_data.lines[l].edge.to_node.id
+        #println("($ifrom, $ito)")
+        if i in (ifrom, ito) 
+            continue
+        else
+            fix(X_ij_k_i[t, l, k, i], 0.0; force=true)
+        end
+    end
     return
 end
 
@@ -98,9 +109,7 @@ end
 # ---------------------------------------------------------------------------- #
 #                          Conductor choice variables                          #
 # ---------------------------------------------------------------------------- #
-Vararg_Tuple{T} = Tuple{Vararg{T}}
-compute_index(index::Vararg_Tuple{T}, t::T, ::OneConfig) where {T} = index
-compute_index(index::Vararg_Tuple{T}, t::T, ::ReconfigAllowed) where {T} = (t, index...)
+
 
 function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::TopologyChoiceFormulation, ::Undirected)
 
@@ -108,29 +117,39 @@ function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::T
     network_data = model[:network_data]
     L = get_nb_lines(network_data)
     K = get_nb_conductors(network_data)
+    Nu = get_nb_loads(network_data)
     
-    index = isa(topology_choice, OneConfig) ? (1:L) : (1:T, 1:L)
-
-    JuMP.@variables(model,   
-                    begin 
-                        Alpha[1:L, 1:K], (binary = true)
-                        Y[index], (binary = true) 
-                    end
-                    )
     
     if isa(topology_choice, OneConfig) 
+        JuMP.@variables(model,   
+                    begin 
+                        Alpha[1:L, 1:K], (binary = true)
+                        Y[1:L], (binary = true) 
+                    end
+                    )
+
         JuMP.@constraints(  model, 
                             begin
-                                [l=1:L], sum(Alpha[l, k] for k in 1:K) == Y_send[l] + Y_send[l] 
-                                sum(Y_send[l] + Y_rec[l] for l in L) == Nu 
+                                [l=1:L], sum(model[:Alpha][l, k] for k in 1:K) == model[:Y][l]
+                                sum(model[:Y][l] for l in 1:L) == Nu 
                             end
                         )
                         
     elseif isa(topology_choice, ReconfigAllowed)
+        JuMP.@variables(model,   
+                    begin 
+                        Alpha[1:L, 1:K], (binary = true)
+                        Gamma[1:T, 1:L, 1:K], (binary = true)
+                        Y[1:T, 1:L], (binary = true) 
+                    end
+                    )
+
         JuMP.@constraints(  model, 
                             begin
-                                [t=1:T, l=1:L], sum(Alpha[l, k] for k in 1:K) == Y_send[t, l] + Y_send[t, l] 
-                                sum(Y_send[t, l] + Y_rec[t, l] for l in L) == Nu 
+                                [l=1:L], sum(model[:Alpha][l, k] for k in 1:K) <= 1 # we select only one conductor
+                                [t=1:T, l=1:L], sum(model[:Gamma][t, l, k] for k in 1:K) == model[:Y][t, l]
+                                [t=1:T, l=1:L, k=1:K], model[:Gamma][t, l, k] <= model[:Alpha][l, k]
+                                [t=1:T], sum(model[:Y][t, l] for l in 1:L) == Nu # radial in operation
                             end
                         )
     end
@@ -143,16 +162,11 @@ function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::T
     T = model[:time_steps]
     L = get_nb_lines(network_data)
     K = get_nb_conductors(network_data)
+    Nu = get_nb_loads(network_data)
 
     index = isa(topology_choice, OneConfig) ? (1:L) : (1:T, 1:L)
 
-    JuMP.@variables(model,   
-                    begin 
-                        Alpha[1:L, 1:K], (binary = true)
-                        Y_send[index], (binary = true)  
-                        Y_rec[index], (binary = true)  
-                    end
-                    )
+    
                     
 
     # If one line has been built (always select the same conductor for all time_steps)
@@ -160,18 +174,36 @@ function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::T
 
     # Add the links between
     if isa(topology_choice, OneConfig) 
+        JuMP.@variables(model,   
+                    begin 
+                        Alpha[1:L, 1:K], (binary = true)
+                        Y_send[1:L], (binary = true)  
+                        Y_rec[1:L], (binary = true)  
+                    end
+                    )
+
         JuMP.@constraints(  model, 
                             begin
-                                [l=1:L], sum(Alpha[l, k] for k in 1:K) == Y_send[l] + Y_send[l] 
-                                sum(Y_send[l] + Y_rec[l] for l in L) == Nu 
+                                [l=1:L], sum(model[:Alpha][l, k] for k in 1:K) == model[:Y_send][l] + model[:Y_rec][l] 
+                                sum(model[:Y_send][l] + model[:Y_rec][l] for l in 1:L) == Nu 
                             end
                         )
 
     elseif isa(topology_choice, ReconfigAllowed)
+        JuMP.@variables(model,   
+                    begin 
+                        Alpha[1:L, 1:K], (binary = true)
+                        Gamma[1:T, 1:L, 1:K], (binary = true)
+                        Y_send[1:T, 1:L], (binary = true)  
+                        Y_rec[1:T, 1:L], (binary = true)  
+                    end
+                    )
         JuMP.@constraints(  model, 
                             begin
-                                [t=1:T, l=1:L], sum(Alpha[l, k] for k in 1:K) == Y_send[t, l] + Y_send[t, l] 
-                                sum(Y_send[t, l] + Y_rec[t, l] for l in L) == Nu 
+                                [l=1:L], sum(model[:Alpha][l, k] for k in 1:K) <= 1 # we select only one conductor
+                                [t=1:T, l=1:L], sum(model[:Gamma][t, l, k] for k in 1:K) == model[:Y_send][t, l] + model[:Y_rec][t, l]
+                                [t=1:T, l=1:L, k=1:K], model[:Gamma][t, l, k] <= model[:Alpha][l, k]
+                                [t=1:T], sum(model[:Y_send][t, l] + model[:Y_rec][t, l] for l in 1:L) == Nu # radial in operation
                             end
                         )
     end

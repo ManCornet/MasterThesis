@@ -129,8 +129,8 @@ end
     #[l = L, t = T], P_ij[l, t] == sum(P_ij_k[l, k, t] for k in K)
     #[l = L, t = T], Q_ij[l, t] == sum(Q_ij_k[l, k, t] for k in K)
 
-    #[l = L, t = T], [V_sqr[line_ends[l][1], t] / 2; sum(I_sqr_k[l, k, t] for k in K); sum(P_ij_k[l, k, t] for k in K); sum(Q_ij_k[l, k, t] for k in K)] in RotatedSecondOrderCone()
-    [l = L, t = T], V_sqr[line_ends[l][1], t] * sum(I_sqr_k[l, k, t] for k in K) == sum(P_ij_k[l, k, t] for k in K)^2 + sum(Q_ij_k[l, k, t] for k in K)^2
+    [l = L, t = T], [V_sqr[line_ends[l][1], t] / 2; sum(I_sqr_k[l, k, t] for k in K); sum(P_ij_k[l, k, t] for k in K); sum(Q_ij_k[l, k, t] for k in K)] in RotatedSecondOrderCone()
+    #[l = L, t = T], V_sqr[line_ends[l][1], t] * sum(I_sqr_k[l, k, t] for k in K) == sum(P_ij_k[l, k, t] for k in K)^2 + sum(Q_ij_k[l, k, t] for k in K)^2
     #[l = L, k = K, t = T], [V_sqr[line_ends[l][1], t] / 2; I_sqr_k[l, k, t]; P_ij_k[l, k, t]; Q_ij_k[l, k, t]] in RotatedSecondOrderCone()
 
     #[i = Nu], sum(Y[l] for l in Omega_sending[i]) + sum(Y[l] for l in Omega_receiving[i]) >= 1

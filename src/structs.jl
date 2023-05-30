@@ -315,6 +315,10 @@ function get_nb_substations(n::Network)
     return n.nb_substations
 end
 
+function get_nb_conductors(n::Network)
+    return n.nb_conductors
+end
+
 function get_nb_buses(n::Network)
     return n.nb_substations + n.nb_loads
 end

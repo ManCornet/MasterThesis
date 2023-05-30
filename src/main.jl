@@ -323,17 +323,21 @@ User_costs = UserCosts(PV_cost, PV_conv_cost, EIC, EEC, DSOEC, DSOEC, GCC, amort
 # -- Running the model -- 
 
 simulation  = Simulation(network, network_topology, DSO_costs, User_costs)
-formulation = Formulation(powerflow= BFM(),
-                            production= DG(),
-                            radiality= SingleCommodityFlow(),
-                            topology_choice= OneConfig(),
-                            graph_type= Undirected(),
-                            convexity= Convex(),
-                            v_constraints= StrongVoltages(),
-                            i_constraints= StrongCurrents(),
+formulation = Formulation(  powerflow = BIM(),
+                            production = DG(),
+                            topology_choice = ReconfigAllowed(),
+                            graph_type = Directed(),
+                            radiality = SingleCommodityFlow(),
+                            convexity = Convex(),
+                            v_constraints = StrongVoltages(),
+                            i_constraints = StrongCurrents(),
                             )
-                            
+
 upper_model = build_model(simulation; formulation=formulation)
+
+using JuMP
+print(upper_model)
+display(all_variables(upper_model))
 
 
 # -- Run a simulation of the model --
