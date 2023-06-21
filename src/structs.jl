@@ -14,9 +14,10 @@
 # ============================================================================#
 #                                   Imports                                   #
 # ============================================================================#
-using LaTeXStrings
-using GraphRecipes, Graphs
-using Plots
+# using LaTeXStrings
+# using StructTypes, JSON3
+# using Plots
+
 # abstract type Device end abstract type to represent PV or storage
 #=
 mutable struct Battery <: Device
@@ -63,7 +64,7 @@ end
 
     Description:
     ------------
-    Structure reprensenting an edge in the graph of the network
+    Structure representing an edge in the graph of the network
 
     Fields:
     -------
@@ -335,10 +336,20 @@ function get_nb_time_steps(p::Profile)
     return length(p.time_serie)
 end
 
+StructTypes.StructType(::Type{Edge}) = StructTypes.Struct()
+StructTypes.StructType(::Type{Node}) = StructTypes.Struct()
 StructTypes.StructType(::Type{NetworkTopology}) = StructTypes.Mutable()
-function save(R::NetworkTopology, filename::String)
+function save(data::NetworkTopology, filename::String)
     f = open(filename,"w")
-    JSON3.write(f, R)
+    JSON3.pretty(f, data)
+    close(f)
+end
+
+StructTypes.StructType(::Type{Line}) = StructTypes.Mutable()
+StructTypes.StructType(::Type{Network}) = StructTypes.Mutable()
+function save(data::Network, filename::String)
+    f = open(filename,"w")
+    JSON3.pretty(f, data)
     close(f)
 end
 

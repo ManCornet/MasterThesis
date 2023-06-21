@@ -10,14 +10,14 @@ compute_idx(index::Vararg_Tuple{T}, t::T, ::ReconfigAllowed) where {T} = (t, ind
 function _add_RefVoltages!(model::JuMP.AbstractModel)::Nothing
     network_data = model[:network_data]
     T  = model[:time_steps]
-    Ns = get_nb_substations(network_data)
+    Ns = network_data.nb_substations
    
     JuMP.@constraints(  model, begin
                         [t=1:T, i=1:Ns], model[:V_sqr][t, i] - 1 <= 
-                                        (network.buses[i].V_limits.V_max^2 - 1) *
+                                        (network_data.buses[i].V_limits.V_max^2 - 1) *
                                         (1 - model[:Beta][i])
                         [t=1:T, i=1:Ns], model[:V_sqr][t, i] - 1 >= 
-                                        (network.buses[i].V_limits.V_min^2 - 1) * 
+                                        (network_data.buses[i].V_limits.V_min^2 - 1) * 
                                         (1 - model[:Beta][i])
                     end)
     return 
@@ -30,8 +30,8 @@ end
 function _add_LoadOverSatisfaction!(model::JuMP.AbstractModel, ::NoDG)::Nothing
     network_data = model[:network_data]
     T  = model[:time_steps]
-    Ns = get_nb_substations(network_data)
-    N  = get_nb_buses(network_data)
+    Ns = network_data.nb_substations
+    N  = Ns + network_data.nb_loads
     buses = network_data.buses
 
     JuMP.@constraints(  model, begin
@@ -49,9 +49,9 @@ end
 function _add_LoadOverSatisfaction!(model::JuMP.AbstractModel, ::DG)::Nothing
     network_data = model[:network_data]
     T  = model[:time_steps]
-    Ns = get_nb_substations(network_data)
-    N  = get_nb_buses(network_data)
-    Nu = get_nb_loads(network_data)
+    Ns = network_data.nb_substations
+    Nu = network_data.nb_loads
+    N  = Ns + Nu
     buses = network_data.buses
 
     JuMP.@constraints(  model, begin
@@ -75,7 +75,7 @@ function _add_SubstationConstraints!(model::JuMP.AbstractModel, ::NonConvex)::No
 
     network_data = model[:network_data]
     T  = model[:time_steps]
-    Ns = get_nb_substations(network_data)
+    Ns = network_data.nb_substations
     buses = network_data.buses
 
     JuMP.@constraints(  model, begin
@@ -90,7 +90,7 @@ function _add_SubstationConstraints!(model::JuMP.AbstractModel, ::Convex)::Nothi
 
     network_data = model[:network_data]
     T  = model[:time_steps]
-    Ns = get_nb_substations(network_data)
+    Ns = network_data.nb_substations
     buses = network_data.buses
 
     JuMP.@constraints(  model, begin
@@ -109,7 +109,7 @@ function _add_VoltageOpConstraints!(model::JuMP.AbstractModel, ::StrongVoltages)
 
     network_data = model[:network_data]
     T  = model[:time_steps]
-    N  = get_nb_buses(network_data)
+    N  = network_data.nb_substations + network_data.nb_loads
     buses = network_data.buses
 
     for t in 1:T, i in 1:N
@@ -125,14 +125,26 @@ function _add_VoltageOpConstraints!(model::JuMP.AbstractModel, ::RelaxedVoltages
 
     network_data = model[:network_data]
     T  = model[:time_steps]
-    N  = get_nb_buses(network_data)
+    N  = network_data.nb_substations + network_data.nb_loads
     buses = network_data.buses
 
+    JuMP.@variables( model, begin 
+                    V_violation_up[1:T, 1:L, 1:K], (binary=true)
+                    V_violation_low[1:T, 1:L, 1:K], (binary=true)
+                    V_slack_up[1:T, 1:L, 1:K]
+                    V_slack_low[1:T, 1:L, 1:K]
+                    end)
+
+
     JuMP.@constraints(  model, begin
-                        [t=1:T, i=1:Ns], model[:V_sqr][t, i] >= sub_buses[i].V_limits.V_min^2
-                        [t=1:T, i=1:Ns], model[:V_sqr][t, i] <= sub_buses[i].V_limits.V_max^2
-                        [t=1:T, i=1:Nu], model[:V_sqr][t, Ns + i] >= load_buses[i].V_limits.V_min^2
-                        [t=1:T, i=1:Nu], model[:V_sqr][t, Ns + i] <= load_buses[i].V_limits.V_max^2
+                        [t=1:T, i=1:N], model[:V_slack_low][t, i] <= 
+                                        model[:V_violation_low][t, i] * buses[i].V_limits.V_min^2
+                        [t=1:T, i=1:N], model[:V_slack_up][t, i] <= 
+                                        model[:V_violation_up][t, i] * buses[i].V_limits.V_max^2
+                        [t=1:T, i=1:N], model[:V_sqr][t, i] + model[:V_slack_low][t, i] >= 
+                                        buses[i].V_limits.V_min^2
+                        [t=1:T, i=1:N], model[:V_sqr][t, i] - model[:V_slack_up][t, i] <= 
+                                        buses[i].V_limits.V_max^2
                     end)
     return 
 end
@@ -148,8 +160,8 @@ function _add_CurrentOpConstraints!(model::JuMP.AbstractModel,
 
     network_data = model[:network_data]
     T  = model[:time_steps]
-    L  = get_nb_lines(network_data)
-    K  = get_nb_conductors(network_data)
+    L  = network_data.nb_lines
+    K  = network_data.nb_conductors
     conductors = network_data.conductors
 
     cond_choice = isa(topology_choice, OneConfig) ? model[:Alpha] : model[:Gamma]
@@ -169,8 +181,8 @@ function _add_CurrentOpConstraints!(model::JuMP.AbstractModel,
 
     network_data = model[:network_data]
     T = model[:time_steps]
-    L = get_nb_lines(network_data)
-    K = get_nb_conductors(network_data)
+    L = network_data.nb_lines
+    K = network_data.nb_conductors
     conductors = network_data.conductors
 
     cond_choice = isa(topology_choice, OneConfig) ? model[:Alpha] : model[:Gamma]
@@ -206,14 +218,19 @@ function _add_PowerBalanceConstraints!( model::JuMP.AbstractModel,
     Omega_receiving = model[:network_topology].receiving_lines
     T  = model[:time_steps]
     network_data = model[:network_data]
-    K = get_nb_conductors(network_data)
-    Ns = get_nb_substations(network_data)
-    Nu = get_nb_loads(network_data)
+    K = network_data.nb_conductors
+    Ns = network_data.nb_substations
+    Nu = network_data.nb_loads
+    N = Ns + Nu
+    L = network_data.nb_lines
     conductors = network_data.conductors
+    buses = network_data.buses
     lines = network_data.lines
-    P_consumed = [buses[Ns + i].load_profile.time_serie .* buses[Ns + i].cos_phi for i in 1:Nu]
-    Q_consumed = [buses[Ns + i].load_profile.time_serie .* sin(acos(buses[Ns + i].cos_phi)) for i in 1:Nu]
+    P_consumed = [buses[i].load_profile.time_serie .* buses[i].cos_phi for i in (Ns+1):N]
+    Q_consumed = [buses[i].load_profile.time_serie .* sin(acos(buses[i].cos_phi)) for i in (Ns+1):N]
     p_pv = isa(prod_type, DG) ? model[:p_pv] : zeros(Float64, T, Nu)
+
+    #println(Q_consumed)
 
     JuMP.@constraints(  model, begin
                         [t=1:T, i=1:Ns], -  model[:P_sub][t, i] ==  
@@ -239,6 +256,12 @@ function _add_PowerBalanceConstraints!( model::JuMP.AbstractModel,
                                             conductors[k].x * lines[l].length * model[:I_sqr_k][t, l, k]
                                             for l in Omega_receiving[Ns + i], k in 1:K) -
                                             sum(model[:Q_ij_k][t, l, k] for l in Omega_sending[Ns + i], k in 1:K)
+                        
+                        # Maybe move this at another place in the code but temporary to test
+                        [t=1:T, l=1:L, k=1:K], model[:P_ij_k][t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * model[:Alpha][l, k] # indispensable
+                        [t=1:T, l=1:L, k=1:K], model[:P_ij_k][t, l, k] >= -conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * model[:Alpha][l, k] # indispensable
+                        [t=1:T, l=1:L, k=1:K], model[:Q_ij_k][t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * model[:Alpha][l, k] # indispensable
+                        [t=1:T, l=1:L, k=1:K], model[:Q_ij_k][t, l, k] >= -conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * model[:Alpha][l, k] # indispensable
                         end
                     )
     return
@@ -254,13 +277,14 @@ function _add_PowerBalanceConstraints!( model::JuMP.AbstractModel,
     Omega_receiving = model[:network_topology].receiving_lines
     network_data = model[:network_data]
     T  = model[:time_steps]
-    K = get_nb_conductors(network_data)
-    Ns = get_nb_substations(network_data)
-    Nu = get_nb_loads(network_data)
+    K = network_data.nb_conductors
+    Ns = network_data.nb_substations
+    Nu = network_data.nb_loads
     buses = network_data.buses
     P_consumed = [buses[Ns + i].load_profile.time_serie .* buses[Ns + i].cos_phi for i in 1:Nu]
     Q_consumed = [buses[Ns + i].load_profile.time_serie .* sin(acos(buses[Ns + i].cos_phi)) for i in 1:Nu]
     p_pv = isa(prod_type, DG) ? model[:p_pv] : zeros(Float64, T, Nu)
+
 
     JuMP.@constraints(  model, begin
                         [t=1:T, i=1:Ns], -  model[:P_sub][t, i] ==  
@@ -279,6 +303,8 @@ function _add_PowerBalanceConstraints!( model::JuMP.AbstractModel,
                                             sum(model[:Q_ji_k][t, l, k] for l in Omega_receiving[Ns + i], k in 1:K) -
                                             sum(model[:Q_ij_k][t, l, k] for l in Omega_sending[Ns + i], k in 1:K)
                     end)
+
+                   
     return 
 end
 
@@ -291,8 +317,8 @@ function _add_RotatedConicConstraints!( model::JuMP.AbstractModel,
 
     network_data = model[:network_data]
     T  = model[:time_steps]
-    L = get_nb_lines(network_data)
-    K = get_nb_conductors(network_data)
+    L = network_data.nb_lines
+    K = network_data.nb_conductors
     lines = network_data.lines
 
 
@@ -311,8 +337,8 @@ function _add_RotatedConicConstraints!(model::JuMP.AbstractModel,
                                     )::Nothing
     network_data = model[:network_data]
     T  = model[:time_steps]
-    L = get_nb_lines(network_data)
-    K = get_nb_conductors(network_data)
+    L = network_data.nb_lines
+    K = network_data.nb_conductors
     lines = network_data.lines
 
     JuMP.@constraint(model,
@@ -329,8 +355,8 @@ function _add_RotatedConicConstraints!( model::JuMP.AbstractModel,
                                     )::Nothing
     network_data = model[:network_data]
     T  = model[:time_steps]
-    L = get_nb_lines(network_data)
-    K = get_nb_conductors(network_data)
+    L = network_data.nb_lines
+    K = network_data.nb_conductors
     lines = network_data.lines
    
     JuMP.@constraint(model, 
@@ -348,8 +374,8 @@ function _add_RotatedConicConstraints!( model::JuMP.AbstractModel,
                                     )::Nothing
     network_data = model[:network_data]
     T  = model[:time_steps]
-    L = get_nb_lines(network_data)
-    K = get_nb_conductors(network_data)
+    L = network_data.nb_lines
+    K = network_data.nb_conductors
     lines = network_data.lines
 
     JuMP.@constraint(model, 
@@ -369,8 +395,8 @@ function _add_PowerFlowConstraints!(model::JuMP.AbstractModel,
     # THINK ABOUT WAYS TO GET THE INDICES OF ALPHA 
     network_data = model[:network_data]
     T  = model[:time_steps]
-    L = get_nb_lines(network_data)
-    K = get_nb_conductors(network_data)
+    L = network_data.nb_lines
+    K = network_data.nb_conductors
     lines = network_data.lines
     conductors = network_data.conductors
     buses = network_data.buses
@@ -459,17 +485,29 @@ function _add_PowerFlowConstraints!(model::JuMP.AbstractModel,
                                     ::BFM
                                 )::Nothing
 
+    # Redo this function and check several times !!!!!
+
     network_data = model[:network_data]
     T  = model[:time_steps]
-    L = get_nb_lines(network_data)
-    K = get_nb_conductors(network_data)
+    L = network_data.nb_lines
+    K = network_data.nb_conductors
     conductors = network_data.conductors
     lines = network_data.lines
-    buses = network.buses
+    buses = network_data.buses
+
+    # [l = L, t = T], V_sqr[line_ends[l][2], t] - V_sqr[line_ends[l][1], t] <=
+    #                 sum(-2 * (R[l, k] * P_ij_k[l, k, t] + X[l, k] * Q_ij_k[l, k, t]) +
+    #                      (R[l, k]^2 + X[l, k]^2) * I_sqr_k[l, k, t] for k in K) +
+    #                 M * (1 - Y[l])
+    # [l = L, t = T], V_sqr[line_ends[l][2], t] - V_sqr[line_ends[l][1], t] >=
+    #                 sum(-2 * (R[l, k] * P_ij_k[l, k, t] + X[l, k] * Q_ij_k[l, k, t]) +
+    #                      (R[l, k]^2 + X[l, k]^2) * I_sqr_k[l, k, t] for k in K) -
+    #                 M * (1 - Y[l])
+
 
     voltage_expr = JuMP.@expression(
         model, 
-        [t=1:T, l=1:L], - sum(2 * (conductors[k].r * lines[l].length * model[:P_ij_k][t, l, k] + 
+        [t=1:T, l=1:L], sum( -2 * (conductors[k].r * lines[l].length * model[:P_ij_k][t, l, k] + 
         conductors[k].x * lines[l].length * model[:Q_ij_k][t, l, k]) +
         ((conductors[k].r * lines[l].length)^2 + (conductors[k].x * lines[l].length)^2) * 
         model[:I_sqr_k][t, l, k] for k in 1:K)) 
@@ -500,7 +538,7 @@ function _add_PowerFlowConstraints!(model::JuMP.AbstractModel,
                 model[:V_sqr][t, ito] - model[:V_sqr][t, ifrom] <= voltage_expr[t, l] + 
                                             Y[compute_idx((l,), t, topology_choice)...]
 
-                model[:V_sqr][t, ito] - model[:V_sqr][t, ifrom] >= voltage_expr[t, l] + 
+                model[:V_sqr][t, ito] - model[:V_sqr][t, ifrom] >= voltage_expr[t, l] - 
                                             Y[compute_idx((l,), t, topology_choice)...]
                 
             end)
@@ -516,8 +554,8 @@ end
 function _add_PVOperationConstraints!(model::JuMP.AbstractModel)::Nothing
     network_data = model[:network_data]
     T  = model[:time_steps]
-    Nu = get_nb_loads(network_data)
-    Ns = get_nb_substations(network_data)
+    Nu = network_data.nb_loads
+    Ns = network_data.nb_substations
     PV_prod = [network_data.buses[Ns + i].PV_installation.profile.time_serie for i in 1:Nu]
 
     JuMP.@constraints(model, begin

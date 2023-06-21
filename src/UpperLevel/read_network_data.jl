@@ -14,9 +14,9 @@
 # =============================================================================
 #                                   Imports
 # =============================================================================
-import DataFrames
-import Random 
-import XLSX
+# import DataFrames
+# import Random 
+# import XLSX
 
 # =============================================================================
 #                                  Functions
@@ -116,9 +116,8 @@ function get_conductors_data(NETWORK_PATH::String, pu_basis::PU_BASIS, money_bas
     # Get the sheet corresponding to network buses data
     df_cond = DataFrames.DataFrame(XLSX.readtable(NETWORK_PATH, "conductor"))
 
-    K = DataFrames.nrow(df_cond)   
-    K = 1 # ATTENTION CHANGEZ CELA 
-
+    K = DataFrames.nrow(df_cond)    
+    K = 2 # ATTENTION CHANGER CA
     conds = [Conductor( convert(String, df_cond.name[k]), 
                         convert(Float64, df_cond.r_ohm_per_km[k]) / pu_basis.base_impedance, 
                         convert(Float64, df_cond.x_ohm_per_km[k]) / pu_basis.base_impedance,

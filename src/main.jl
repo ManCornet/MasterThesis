@@ -16,17 +16,18 @@
 # Activating the julia environement
 # Path: I must add in terminal julia --project -- src/main.jl --
 
-using ArgParse, PrettyTables
-using Plots, JSON3
-using StructTypes
-#using .UpperLevel
-
-
-include("structs.jl")
-include("read_network_data.jl")
-include("profiles.jl")
+include("./UpperLevel/UpperLevel.jl")
 include("utils.jl")
-include("./UpperLevel/build_model.jl")
+
+using ArgParse, PrettyTables
+using Plots
+using .UpperLevel
+
+# include("structs.jl")
+# include("read_network_data.jl")
+# include("profiles.jl")
+
+# include("./UpperLevel/build_model.jl")
 
 # =============================================================================
 #                                   Functions
@@ -220,10 +221,10 @@ profiles_data_dir = joinpath(root_dir, "ManchesterData", "LCT_profiles")
 NETWORK_PATH = joinpath(network_data_dir, "model_2S2H.xlsx") 
 pu_basis = define_pu_basis()
 # -- Fetching the network data --
-network, network_topology = get_network_data(NETWORK_PATH;max_pv_capa=PV_capa, pu_basis=pu_basis)
+network, network_topology = get_network_data(NETWORK_PATH; max_pv_capa=PV_capa, pu_basis=pu_basis)
 #print_network_topology(network_topology)
-# save(network_topology, "network_topology.json")
-# save(network_data, "network_data.json")
+save_struct(network_topology, "network_topology.json")
+save_struct(network, "network_data.json")
 
 # =========================== Load profiles  ==============================
 
@@ -283,6 +284,7 @@ print_load_profiles( joinpath(plot_dir, "load_profiles.pdf"),
 
 # -- Add load profiles to network structure -- 
 add_load_profiles!(network, load_profiles; delta_t=delta_t, pu_basis=pu_basis)
+#save_struct(network, "network_data.json")
 
 # =========================== PV profiles  ==============================
 PV_PATH = joinpath(profiles_data_dir, "Summer_PV_Profiles.xlsx")
@@ -316,28 +318,30 @@ add_PV_profiles!(network, PV_profiles, ids_profiles[1];
 # =========================== Costs definition  ===========================
 money_basis = 1.0
 
-DSO_costs  = DSOCosts(substation_cost, 0.7 * EIC, amort_DSO, interest_rate_DSO, money_basis)
-User_costs = UserCosts(PV_cost, PV_conv_cost, EIC, EEC, DSOEC, DSOEC, GCC, amort_PV, amort_PV_conv, money_basis)
+DSO_costs  = UpperLevel.DSOCosts(substation_cost, 0.7 * EIC, amort_DSO, interest_rate_DSO, money_basis)
+User_costs = UpperLevel.UserCosts(PV_cost, PV_conv_cost, EIC, EEC, DSOEC, DSOEC, GCC, amort_PV, amort_PV_conv, money_basis)
 
 # =========================== Model  ===========================
 # -- Running the model -- 
-
-simulation  = Simulation(network, network_topology, DSO_costs, User_costs)
-formulation = Formulation(  powerflow = BIM(),
-                            production = DG(),
-                            topology_choice = ReconfigAllowed(),
-                            graph_type = Directed(),
-                            radiality = SingleCommodityFlow(),
-                            convexity = Convex(),
-                            v_constraints = StrongVoltages(),
-                            i_constraints = StrongCurrents(),
+nb_sign_days = length(PROFILE_PATHS)
+simulation  = UpperLevel.Simulation(network, network_topology, DSO_costs, User_costs, nb_sign_days)
+formulation = UpperLevel.Formulation(  powerflow = UpperLevel.BFM(),
+                            production = UpperLevel.NoDG(),
+                            topology_choice = UpperLevel.OneConfig(),
+                            graph_type = UpperLevel.Undirected(),
+                            radiality = UpperLevel.SingleCommodityFlow(),
+                            convexity = UpperLevel.Convex(),
+                            v_constraints = UpperLevel.StrongVoltages(),
+                            i_constraints = UpperLevel.StrongCurrents(),
                             )
 
-upper_model = build_model(simulation; formulation=formulation)
+upper_model = UpperLevel.build_model(simulation; formulation=formulation)
+#objective, var_values, time = UpperLevel.solve_model(upper_model)
 
-using JuMP
-print(upper_model)
-display(all_variables(upper_model))
+#println(objective)
+#println(var_values)
+#println(time)
+#display(all_variables(upper_model))
 
 
 # -- Run a simulation of the model --

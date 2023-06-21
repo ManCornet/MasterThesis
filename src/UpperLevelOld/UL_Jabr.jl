@@ -48,7 +48,8 @@ function UL_Jabr(network_dict::Dict, obj_dict::Dict)
     # ======================== Set up the Gurobi solver =======================
 
     model = Model(Gurobi.Optimizer)
-    set_optimizer_attribute(model, "TimeLimit", 100)
+    set_optimizer_attribute(model, "TimeLimit", 200)
+    set_optimizer_attribute(model, "MIPGap", 1e-6)
     set_optimizer_attribute(model, "Presolve", 0)
 
     # ============================== Variables ================================ 
@@ -56,7 +57,7 @@ function UL_Jabr(network_dict::Dict, obj_dict::Dict)
     @variables( model,   
                 begin 
                 MIN_VOLTAGE^2 <= V_sqr[N] <= MAX_VOLTAGE^2, (container=Array)
-                I_sqr[L, K]                               , (container=Array)
+                I_sqr[L, K] >=0                            , (container=Array)
                 P_ij[L, K]                                , (container=Array)
                 P_ji[L, K]                                , (container=Array)
                 Q_ij[L, K]                                , (container=Array)
@@ -64,9 +65,9 @@ function UL_Jabr(network_dict::Dict, obj_dict::Dict)
                 X_i_ij[L, K, N]                           , (container=Array)
                 X_ij_re[L, K] >= 0                        , (container=Array)
                 X_ij_im[L, K]                             , (container=Array)
-                P_G[N] >= 0                               , (container=Array)
+                P_G[N]                                    , (container=Array)
                 Q_G[N]                                    , (container=Array)
-                S_G[N]                                    , (container=Array)                          
+                S_G[N] >= 0                                  , (container=Array)                          
                 alpha[L, K]                               , (container=Array, binary=true)
                 beta[Ns]                                  , (container=Array, binary=true)
                 x[L]                                      , (container=Array, binary=true)
@@ -74,9 +75,9 @@ function UL_Jabr(network_dict::Dict, obj_dict::Dict)
             )
 
     for i in Nu
-        fix(P_G[i], 0.0; force=true) 
+        fix(P_G[i], 0.0) 
         fix(Q_G[i], 0.0)
-        fix(S_G[i], 0.0)
+        fix(S_G[i], 0.0; force=true)
     end
 
     for l in L, k in K, i in N 

@@ -117,11 +117,11 @@ end
 
     # Distflow
     [l = L, t = T], V_sqr[line_ends[l][2], t] - V_sqr[line_ends[l][1], t] <=
-                    -sum(2 * (R[l, k] * P_ij_k[l, k, t] + X[l, k] * Q_ij_k[l, k, t]) +
+                    sum(-2 * (R[l, k] * P_ij_k[l, k, t] + X[l, k] * Q_ij_k[l, k, t]) +
                          (R[l, k]^2 + X[l, k]^2) * I_sqr_k[l, k, t] for k in K) +
                     M * (1 - Y[l])
     [l = L, t = T], V_sqr[line_ends[l][2], t] - V_sqr[line_ends[l][1], t] >=
-                    -sum(2 * (R[l, k] * P_ij_k[l, k, t] + X[l, k] * Q_ij_k[l, k, t]) +
+                    sum(-2 * (R[l, k] * P_ij_k[l, k, t] + X[l, k] * Q_ij_k[l, k, t]) +
                          (R[l, k]^2 + X[l, k]^2) * I_sqr_k[l, k, t] for k in K) -
                     M * (1 - Y[l])
 

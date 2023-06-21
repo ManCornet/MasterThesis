@@ -54,7 +54,7 @@ end
 #                                   Models
 # =============================================================================
 
-function UL_BFM_1P(network_dict::Dict, obj_dict::Dict; radiality::Integer=1, generation::Bool=false)       
+function UL_BFM_1P(network_dict::Dict, obj_dict::Dict; radiality::Integer=0, generation::Bool=false)       
 
     # ========================= Network parameters ========================
 
@@ -88,9 +88,9 @@ function UL_BFM_1P(network_dict::Dict, obj_dict::Dict; radiality::Integer=1, gen
                 MIN_VOLTAGE^2 <= V_sqr[N] <= MAX_VOLTAGE^2 , (container=Array)
                 I_sqr_k[L, K] >= 0                         , (container=Array)
                 I_sqr[L]      >= 0                         , (container=Array)
-                P_G[N] >= 0                                , (container=Array)
+                P_G[N]                                     , (container=Array)
                 Q_G[N]                                     , (container=Array)
-                S_G[N]                                     , (container=Array)
+                S_G[N] >= 0                                   , (container=Array)
                 P_ij_k[L, K]                               , (container=Array) 
                 Q_ij_k[L, K]                               , (container=Array)
                 P_ij[L]                                    , (container=Array)
@@ -121,13 +121,13 @@ function UL_BFM_1P(network_dict::Dict, obj_dict::Dict; radiality::Integer=1, gen
     end
 
 
-    #=
+
     for i in Nu
-        fix(P_G[i], 0.0; force=true) 
+        fix(P_G[i], 0.0) 
         fix(Q_G[i], 0.0)
-        fix(S_G[i], 0.0)
+        fix(S_G[i], 0.0; force=true)
     end
-    =#
+
     # ============================= Constraints ===============================
 
     # CONSTRAINT (6) -> means constraint (6) in the paper
@@ -362,6 +362,12 @@ function UL_BFM_1P(network_dict::Dict, obj_dict::Dict; radiality::Integer=1, gen
                 V_sqr[i] - 1 >= (MIN_VOLTAGE^2 - 1)*(1-beta[i])
     ) 
 
+    # CONSTRAINT (18)
+    @constraint(model,
+            radiality_constraint,
+            sum(y_send[l] + y_rec[l] for l in L) == length(N) - length(Ns)
+    )
+
     
 
     if radiality == 1
@@ -371,10 +377,10 @@ function UL_BFM_1P(network_dict::Dict, obj_dict::Dict; radiality::Integer=1, gen
         # ------------------------------------------ 
 
         # CONSTRAINT (18)
-        @constraint(model,
-                    radiality_constraint,
-                    sum(y_send[l] + y_rec[l] for l in L) == length(N) - length(Ns)
-        )
+        # @constraint(model,
+        #             radiality_constraint,
+        #             sum(y_send[l] + y_rec[l] for l in L) == length(N) - length(Ns)
+        # )
 
 
         @constraint(model, single_comm_constr1[i=Ns_notinit], K_i[i] <= beta[i]*length(Nu))

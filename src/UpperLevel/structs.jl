@@ -14,10 +14,19 @@
 # ============================================================================#
 #                                   Imports                                   #
 # ============================================================================#
-using LaTeXStrings
-using GraphRecipes, Graphs
-using Plots
+# using LaTeXStrings
+# using StructTypes, JSON3
+# using Plots
 
+# abstract type Device end abstract type to represent PV or storage
+#=
+mutable struct Battery <: Device
+    capa::Float64                  # in MVA
+    SOC::Union{Nothing, Vector{Float64}}
+    P::Union{Nothing, Vector{Float64}} # in MW, can be positive or negative
+    Q::Union{Nothing, Vector{Float64}} # in MVar
+end
+=#
 # ============================================================================#
 #                       Structures for physical parameters                    #
 # ============================================================================#
@@ -55,7 +64,7 @@ end
 
     Description:
     ------------
-    Structure reprensenting an edge in the graph of the network
+    Structure representing an edge in the graph of the network
 
     Fields:
     -------
@@ -83,20 +92,20 @@ end
 mutable struct NetworkTopology
     nodes::Vector{Node}
     edges::Vector{Edge} # contains the substation buses
-    Omega_sending::Dict{Vector}
-    Omega_receiving::Dict{Vector}
+    sending_lines::Dict{Int64, Vector{Int64}}
+    receiving_lines::Dict{Int64, Vector{Int64}}
     function NetworkTopology(nodes::Vector{Node}, edges::Vector{Edge})
 
         N = length(nodes)
-        Omega_sending = Dict(n => Vector{Int64}() for n in N)
-        Omega_receiving = Dict(n => Vector{Int64}() for n in N)
+        sending_lines = Dict(n => Vector{Int64}() for n in 1:N)
+        receiving_lines = Dict(n => Vector{Int64}() for n in 1:N)
 
         for e in edges 
-            push!(Omega_sending[e.from_node.id], e.id)
-            push!(Omega_receiving[e.to_node.id], e.id)
+            push!(sending_lines[e.from_node.id], e.id)
+            push!(receiving_lines[e.to_node.id], e.id)
         end
 
-        return new(nodes, edges, Omega_sending, Omega_receiving)
+        return new(nodes, edges, sending_lines, receiving_lines)
     end
 
 end
@@ -126,19 +135,15 @@ end
 PQ_DIAGRAM = NamedTuple{(:max_q, :slope), Tuple{Float64, Float64}}
 
 mutable struct PV 
-    capa_max::Float64                  # in MVA
     profile::Profile 
     PQ_diagram::PQ_DIAGRAM    # max Q consumed/produced wrt P_peak
     installed_capa::Union{Nothing, Vector{Float64}}
     P::Union{Nothing, Vector{Float64}} # in pu, always positive cause generation
     Q::Union{Nothing, Vector{Float64}} # in pu, can be positive or negative
 
-    function PV(capa_max::Float64, profile::Profile, PQ_diagram::PQ_DIAGRAM) 
-        if capa_max < 0 
-            throw(DomainError("[PV]: The max capa of a PV installation must be higher than 0")) 
-        end
+    function PV(profile::Profile, PQ_diagram::PQ_DIAGRAM) 
 
-        return new(capa_max, profile, PQ_diagram, nothing, nothing, nothing) 
+        return new(profile, PQ_diagram, nothing, nothing, nothing) 
     end
 
 end
@@ -154,13 +159,14 @@ abstract type Bus end
 mutable struct User <: Bus
     node::Node
     V_limits::Union{Nothing, VLIM}        #  in KV
+    max_pv_capa::Float64                  # in MVA
     V_magn::Union{Nothing, Float64}       #  in KV
     load_profile::Union{Nothing, Profile} 
     PV_installation::Union{Nothing, PV}   # 
     cos_phi::Float64                # cos(phi)
 
-    function User(node::Node, V_limits::Union{Nothing, VLIM}) 
-        return new(node, V_limits, nothing, nothing, nothing, 0.9) 
+    function User(node::Node, V_limits::Union{Nothing, VLIM}, max_pv_capa::Float64,) 
+        return new(node, V_limits, max_pv_capa::Float64,  nothing, nothing, nothing, 0.9) 
     end
 end
 
@@ -204,14 +210,14 @@ mutable struct Line
     edge::Edge
     length::Float64   # in km
     built::Bool
-    line_cost::Union{Nothing, Float64}
+    cost::Union{Nothing, Float64}
     conductor::Union{Nothing, Conductor}       # the conductor that was chosen
     I_magn::Union{Nothing, Float64}            # in kA the magnitude of the current 
     P_send::Union{Nothing, Float64}            # P flowing at sending end of the line
     Q_send::Union{Nothing, Float64}            # Q flowing at sending end of the line
 
     function Line(edge::Edge, length::Float64) 
-        if  line_length < 0 
+        if  length < 0 
             throw(DomainError("""[Line]: The length of a line cannot be negative."""))
         end
         
@@ -240,11 +246,18 @@ PU_BASIS = NamedTuple{(:base_power, :base_voltage, :base_current, :base_impedanc
 """
 mutable struct Network
     lines::Vector{Line}
-    sub_buses::Vector{Substation} # contains the substation buses
-    load_buses::Vector{User} # contains the load buses
+    buses::Vector{Bus}
+    #sub_buses::Vector{Substation} # contains the substation buses
+    #load_buses::Vector{User} # contains the load buses
     conductors::Vector{Conductor}
+    nb_substations::Int64 
+    nb_loads::Int64 
+    nb_lines::Int64
+    nb_conductors::Int64
     pu_basis::PU_BASIS
 end
+
+
 
 #------------------------------------ 6. -------------------------------------#
 #              Structures representing the DSO costs                          #
@@ -271,24 +284,51 @@ struct UserCosts
     money_basis::Float64    # money basis in k€
 end
 
+
+#------------------------------------ 6. -------------------------------------#
+#                       Structures representing a simulation                  #
+#-----------------------------------------------------------------------------#
+struct Simulation 
+    network::Network
+    network_topology::NetworkTopology
+    DSO_costs::DSOCosts 
+    User_costs::UserCosts
+    nb_sign_days::Int64 # number of significative days to simulate
+    nb_time_steps::Int64
+    delta_t::Float64
+
+    function Simulation(network::Network,network_topology::NetworkTopology, DSO_costs::DSOCosts, User_costs::UserCosts, nb_sign_days::Int64)
+
+        Ns = network.nb_substations
+        nb_time_steps = get_nb_time_steps(network.buses[Ns + 1].load_profile)
+        delta_t       = network.buses[Ns + 1].load_profile.granularity
+
+        return new(network, network_topology, DSO_costs, User_costs, nb_sign_days, nb_time_steps, delta_t)
+    end
+end
+
 #------------------------------------ 7. -------------------------------------#
 #                         Additionnal functions                               #
 #-----------------------------------------------------------------------------#
 
-function get_nb_load_bus(d::Network)
-    return length(d.load_buses)
+function get_nb_loads(n::Network)
+    return n.nb_loads
 end
 
-function get_nb_subs_bus(d::Network)
-    return length(d.subs_buses)
+function get_nb_substations(n::Network)
+    return n.nb_substations
 end
 
-function get_nb_lines(d::Network)
-    return length(d.lines)
+function get_nb_conductors(n::Network)
+    return n.nb_conductors
 end
 
-function get_nb_conductors(d::Network)
-    return length(d.conductors)
+function get_nb_buses(n::Network)
+    return n.nb_substations + n.nb_loads
+end
+
+function get_nb_lines(n::Network)
+    return n.nb_lines
 end
 
 function get_nb_nodes(t::NetworkTopology)
@@ -299,10 +339,20 @@ function get_nb_time_steps(p::Profile)
     return length(p.time_serie)
 end
 
+StructTypes.StructType(::Type{Edge}) = StructTypes.Struct()
+StructTypes.StructType(::Type{Node}) = StructTypes.Struct()
 StructTypes.StructType(::Type{NetworkTopology}) = StructTypes.Mutable()
-function save(R::NetworkTopology, filename::String)
+function save_struct(data::NetworkTopology, filename::String)
     f = open(filename,"w")
-    JSON3.write(f, R)
+    JSON3.pretty(f, data)
+    close(f)
+end
+
+StructTypes.StructType(::Type{Line}) = StructTypes.Mutable()
+StructTypes.StructType(::Type{Network}) = StructTypes.Mutable()
+function save_struct(data::Network, filename::String)
+    f = open(filename,"w")
+    JSON3.pretty(f, data)
     close(f)
 end
 
