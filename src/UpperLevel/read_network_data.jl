@@ -70,10 +70,16 @@ function get_buses_data(NETWORK_PATH::String, V_limits::VLIM, pu_basis::PU_BASIS
     Nu = N - Ns                            # Number of user buses
 
     nodes = [Node(i, (x=convert(Float64, df_bus.x[i]), y=convert(Float64, df_bus.y[i]))) for i in 1:N]
-    sub_buses = [Substation(nodes[i], V_limits, convert(Float64, df_bus.S_G_max_mva[i]) / pu_basis.base_power) for i in 1:Ns]
-    load_buses = [User(nodes[i], V_limits, max_pv_capa / pu_basis.base_power) for i in Ns+1:N]
+    sub_buses = [Substation(nodes[i], 
+                            V_limits,
+                            convert(Float64, df_bus.S_G_max_mva[i]) / pu_basis.base_power,
+                            convert(Float64, df_bus.S_G_init_mva[i]) / pu_basis.base_power) 
+                for i in 1:Ns]
 
-    return nodes, [sub_buses; load_buses], Ns, Nu
+    load_buses = [User(nodes[i], V_limits, max_pv_capa / pu_basis.base_power) for i in Ns+1:N]
+    Ns_init = count(df_bus.S_G_init_mva .> 0)
+
+    return nodes, [sub_buses; load_buses], Ns, Ns_init, Nu
 end
 
 """ get_lines_data 
@@ -150,13 +156,27 @@ function get_network_data(  NETWORK_PATH::String;
                             money_basis::Float64=1.0
                             )
     
-    nodes, buses, nb_sub, nb_loads = get_buses_data(NETWORK_PATH, voltage_limits, pu_basis, max_pv_capa)
+    nodes, buses, nb_sub, nb_init_sub, nb_loads = get_buses_data(NETWORK_PATH, voltage_limits, pu_basis, max_pv_capa)
     edges, lines, nb_lines = get_lines_data(NETWORK_PATH, nodes)
     conductors, nb_conductors = get_conductors_data(NETWORK_PATH, pu_basis, money_basis)
 
-    return  Network(lines, buses, conductors, nb_sub, nb_loads, nb_lines, nb_conductors, pu_basis), 
+    return  Network(lines, buses, conductors, nb_sub, nb_init_sub, nb_loads, nb_lines, nb_conductors, pu_basis), 
             NetworkTopology(nodes, edges)
 end
+
+# mutable struct Network
+#     lines::Vector{Line}
+#     buses::Vector{Bus}
+#     #sub_buses::Vector{Substation} # contains the substation buses
+#     #load_buses::Vector{User} # contains the load buses
+#     conductors::Vector{Conductor}
+#     nb_substations::Int64 
+#     nb_init_subs::Int64 
+#     nb_loads::Int64 
+#     nb_lines::Int64
+#     nb_conductors::Int64
+#     pu_basis::PU_BASIS
+# end
 
 function add_load_profiles!(network::Network, load_profiles::Matrix{Float64}; delta_t::Integer, pu_basis::PU_BASIS)
     Nu = get_nb_loads(network)

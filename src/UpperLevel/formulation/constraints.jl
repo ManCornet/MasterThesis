@@ -11,12 +11,15 @@ function _add_RefVoltages!(model::JuMP.AbstractModel)::Nothing
     network_data = model[:network_data]
     T  = model[:time_steps]
     Ns = network_data.nb_substations
-   
+    Ns_init = network_data.nb_init_subs
+    # Nsinit and Nsnotinit do this 
+    #Ns_init = # nb of buses with S_rating
     JuMP.@constraints(  model, begin
-                        [t=1:T, i=1:Ns], model[:V_sqr][t, i] - 1 <= 
+                        [t=1:T, i=1:Ns_init], model[:V_sqr][t, i] == 1
+                        [t=1:T, i=(Ns_init+1):Ns], model[:V_sqr][t, i] - 1 <= 
                                         (network_data.buses[i].V_limits.V_max^2 - 1) *
                                         (1 - model[:Beta][i])
-                        [t=1:T, i=1:Ns], model[:V_sqr][t, i] - 1 >= 
+                        [t=1:T, i=(Ns_init+1):Ns], model[:V_sqr][t, i] - 1 >= 
                                         (network_data.buses[i].V_limits.V_min^2 - 1) * 
                                         (1 - model[:Beta][i])
                     end)
@@ -80,8 +83,8 @@ function _add_SubstationConstraints!(model::JuMP.AbstractModel, ::NonConvex)::No
 
     JuMP.@constraints(  model, begin
                         [t=1:T, i=1:Ns], model[:S_sub][t, i]^2 == model[:P_sub][t, i]^2 + model[:Q_sub][t, i]^2
-                        [t=1:T, i=1:Ns], model[:S_sub][t, i] <= model[:S_sub_capa][i]
-                        [i=1:Ns], model[:S_sub_capa][i] <= model[:Beta][i] * buses[i].S_rating_max
+                        [t=1:T, i=1:Ns], model[:S_sub][t, i] <= buses[i].S_rating + model[:S_sub_capa][i] 
+                        [i=1:Ns], model[:S_sub_capa][i] <= model[:Beta][i] * (buses[i].S_rating_max - buses[i].S_rating)
                     end)
     return 
 end
@@ -95,8 +98,8 @@ function _add_SubstationConstraints!(model::JuMP.AbstractModel, ::Convex)::Nothi
 
     JuMP.@constraints(  model, begin
                         [t=1:T, i=1:Ns], [model[:S_sub][t, i]; model[:P_sub][t, i]; model[:Q_sub][t, i]] in JuMP.SecondOrderCone()
-                        [t=1:T, i=1:Ns], model[:S_sub][t, i] <= model[:S_sub_capa][i]
-                        [i=1:Ns], model[:S_sub_capa][i] <= model[:Beta][i] * buses[i].S_rating_max
+                        [t=1:T, i=1:Ns], model[:S_sub][t, i] <= buses[i].S_rating + model[:S_sub_capa][i]
+                        [i=1:Ns], model[:S_sub_capa][i] <= model[:Beta][i] * (buses[i].S_rating_max - buses[i].S_rating)
                     end)
     return 
 end

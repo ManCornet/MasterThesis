@@ -255,6 +255,7 @@ mutable struct Network
     nb_lines::Int64
     nb_conductors::Int64
     pu_basis::PU_BASIS
+    nb_init_subs::Int64
 end
 
 

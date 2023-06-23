@@ -72,7 +72,7 @@ end
         - from_node : The sending-end node of the edge
         - to_node   : The receiving-end node of the edge
 """ 
-struct Edge 
+mutable struct Edge 
     id::Int64
     from_node::Node
     to_node::Node
@@ -137,7 +137,7 @@ PQ_DIAGRAM = NamedTuple{(:max_q, :slope), Tuple{Float64, Float64}}
 mutable struct PV 
     profile::Profile 
     PQ_diagram::PQ_DIAGRAM    # max Q consumed/produced wrt P_peak
-    installed_capa::Union{Nothing, Vector{Float64}}
+    capa::Union{Nothing, Float64}
     P::Union{Nothing, Vector{Float64}} # in pu, always positive cause generation
     Q::Union{Nothing, Vector{Float64}} # in pu, can be positive or negative
 
@@ -160,28 +160,33 @@ mutable struct User <: Bus
     node::Node
     V_limits::Union{Nothing, VLIM}        #  in KV
     max_pv_capa::Float64                  # in MVA
-    V_magn::Union{Nothing, Float64}       #  in KV
+    V_magn::Union{Nothing, Vector{Float64}}       #  in KV
     load_profile::Union{Nothing, Profile} 
     PV_installation::Union{Nothing, PV}   # 
     cos_phi::Float64                # cos(phi)
 
-    function User(node::Node, V_limits::Union{Nothing, VLIM}, max_pv_capa::Float64,) 
-        return new(node, V_limits, max_pv_capa::Float64,  nothing, nothing, nothing, 0.9) 
+    function User(node::Node, V_limits::Union{Nothing, VLIM}, max_pv_capa::Float64) 
+        return new(node, V_limits, max_pv_capa, nothing, nothing, nothing, 0.9) 
     end
 end
 
+# Add to substation the fact that it can be built or not 
 mutable struct Substation <: Bus
     node::Node
+    built::Bool
     V_limits::Union{Nothing, VLIM}        # in kV
     S_rating_max::Float64                 # in MVA
     S_rating::Union{Nothing, Float64}     # in MVA
-    V_magn::Union{Nothing, Float64}       # in kV 
-    P_sup::Union{Nothing, Float64}        # in MVA 
-    Q_sup::Union{Nothing, Float64}        # in MVA
+    V_magn::Union{Nothing, Vector{Float64}}       # in kV 
+    P_sup::Union{Nothing, Vector{Float64}}        # in MVA 
+    Q_sup::Union{Nothing, Vector{Float64}}        # in MVA
+  
     
-    function Substation(node::Node, V_limits::Union{Nothing, VLIM}, S_rating_max::Float64) 
-
-        return new(node, V_limits, S_rating_max, nothing, nothing, nothing, nothing)
+    function Substation(node::Node, V_limits::Union{Nothing, VLIM}, S_rating_max::Float64, S_rating::Float64)
+        
+        built = S_rating > 0 
+       
+        return new(node, built, V_limits, S_rating_max, S_rating, nothing, nothing, nothing)
     end
 end
 
@@ -212,16 +217,18 @@ mutable struct Line
     built::Bool
     cost::Union{Nothing, Float64}
     conductor::Union{Nothing, Conductor}       # the conductor that was chosen
-    I_magn::Union{Nothing, Float64}            # in kA the magnitude of the current 
-    P_send::Union{Nothing, Float64}            # P flowing at sending end of the line
-    Q_send::Union{Nothing, Float64}            # Q flowing at sending end of the line
+    I_magn::Union{Nothing, Vector{Float64}}            # in kA the magnitude of the current 
+    P_send::Union{Nothing, Vector{Float64}}            # P flowing at sending end of the line
+    Q_send::Union{Nothing, Vector{Float64}}            # Q flowing at sending end of the line
+    P_rec::Union{Nothing, Vector{Float64}}            # P flowing at sending end of the line
+    Q_rec::Union{Nothing, Vector{Float64}}            # Q flowing at sending end of the line
 
     function Line(edge::Edge, length::Float64) 
         if  length < 0 
             throw(DomainError("""[Line]: The length of a line cannot be negative."""))
         end
         
-        return new(edge, length, false, nothing, nothing, nothing, nothing, nothing) 
+        return new(edge, length, false, nothing, nothing, nothing, nothing, nothing, nothing, nothing) 
     end
 end
 
@@ -251,6 +258,7 @@ mutable struct Network
     #load_buses::Vector{User} # contains the load buses
     conductors::Vector{Conductor}
     nb_substations::Int64 
+    nb_init_subs::Int64 
     nb_loads::Int64 
     nb_lines::Int64
     nb_conductors::Int64

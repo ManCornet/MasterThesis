@@ -84,7 +84,7 @@ function parse_commandline(;as_symbols::Bool=false)
         "--PV_pen"
             help = "Pv penetration in [0, 1] is the % of users having PV)"
             arg_type = Float64
-            default = 1.0
+            default = 0.0
         
         "--PV_CAPA"
             help = "Maximum PV capacity per load bus [MVA]"
@@ -223,8 +223,8 @@ pu_basis = define_pu_basis()
 # -- Fetching the network data --
 network, network_topology = get_network_data(NETWORK_PATH; max_pv_capa=PV_capa, pu_basis=pu_basis)
 #print_network_topology(network_topology)
-save_struct(network_topology, "network_topology.json")
-save_struct(network, "network_data.json")
+#save_struct(network_topology, "network_topology.json")
+#save_struct(network, "network_data.json")
 
 # =========================== Load profiles  ==============================
 
@@ -287,33 +287,37 @@ add_load_profiles!(network, load_profiles; delta_t=delta_t, pu_basis=pu_basis)
 #save_struct(network, "network_data.json")
 
 # =========================== PV profiles  ==============================
-PV_PATH = joinpath(profiles_data_dir, "Summer_PV_Profiles.xlsx")
-scaling_PV = [1.0, 0.1]
-nb_PV_profiles = floor(Int, PV_pen * get_nb_loads(network))
-@assert length(scaling_PV) == nb_days
 
-daily_PV_profiles = Vector{Matrix{Float64}}()
-ids_profiles = []
-for d in 1:nb_days
-    daily_PV_profile, _, id_profiles = build_daily_PV_profiles(PV_PATH,
-                                                            nb_PV_profiles; 
-                                                            scaling_PV=scaling_PV[d],
-                                                            nb_agg_periods=nb_agg_periods,
-                                                            seed=nothing)
+if PV_pen > 0
 
-    push!(daily_PV_profiles, daily_PV_profile)
-    push!(ids_profiles, id_profiles)
+    PV_PATH = joinpath(profiles_data_dir, "Summer_PV_Profiles.xlsx")
+    scaling_PV = [1.0, 0.1]
+    nb_PV_profiles = floor(Int, PV_pen * get_nb_loads(network))
+    @assert length(scaling_PV) == nb_days
+
+    daily_PV_profiles = Vector{Matrix{Float64}}()
+    ids_profiles = []
+    for d in 1:nb_days
+        daily_PV_profile, _, id_profiles = build_daily_PV_profiles(PV_PATH,
+                                                                nb_PV_profiles; 
+                                                                scaling_PV=scaling_PV[d],
+                                                                nb_agg_periods=nb_agg_periods,
+                                                                seed=nothing)
+
+        push!(daily_PV_profiles, daily_PV_profile)
+        push!(ids_profiles, id_profiles)
+    end
+
+    PV_profiles, _ , _ = build_profiles(daily_PV_profiles)
+
+    print_PV_profiles(joinpath( plot_dir, "PV_profiles.pdf"), PV_profiles;
+                                delta_t=delta_t, id_profiles=ids_profiles[1])
+
+    # -- Add PV profiles to network structure -- 
+    PQ_diagram = (max_q = 0.3, slope=-1.0)
+    add_PV_profiles!(network, PV_profiles, ids_profiles[1]; 
+                    PQ_diagram = PQ_diagram, delta_t=delta_t)
 end
-
-PV_profiles, _ , _ = build_profiles(daily_PV_profiles)
-
-print_PV_profiles(joinpath( plot_dir, "PV_profiles.pdf"), PV_profiles;
-                            delta_t=delta_t, id_profiles=ids_profiles[1])
-
-# -- Add PV profiles to network structure -- 
-PQ_diagram = (max_q = 0.3, slope=-1.0)
-add_PV_profiles!(network, PV_profiles, ids_profiles[1]; 
-                 PQ_diagram = PQ_diagram, delta_t=delta_t)
 
 # =========================== Costs definition  ===========================
 money_basis = 1.0

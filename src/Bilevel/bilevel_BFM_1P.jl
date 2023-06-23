@@ -152,7 +152,7 @@ end
     [i = Ns, t = T], [S_sub[i, t]; P_sub[i, t]; Q_sub[i, t]] in SecondOrderCone()
     #[i = Ns, t = T], S_sub[i, t]^2 ==  P_sub[i, t]^2 + Q_sub[i, t]^2
     [i = Ns, t = T], S_sub[i, t] <= S_rating_init[i] + S_sub_capa[i]
-    [i = Ns], S_sub_capa[i] <= Beta[i] * S_rating_max[i]
+    [i = Ns], S_sub_capa[i] <= Beta[i] * (S_rating_max[i] - S_rating_init[i])
 
     # Voltage references
     [i in Ns_init, t in T], V_sqr[i, t] == 1
