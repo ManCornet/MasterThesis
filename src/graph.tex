@@ -1,0 +1,17 @@
+\documentclass{standalone}
+\usepackage{tikz}
+\usetikzlibrary{graphs,graphdrawing,quotes}
+\usegdlibrary{force}
+
+\begin{document}
+\begin{tikzpicture}
+  \graph [spring layout, node distance=20mm,
+ nodes={draw, circle, fill=blue, text=white},
+  edge quotes={fill=yellow, inner sep=2pt}]
+  {
+    1 [as={$n_{1}$}, fill=white, text=black];
+    2 [as={$n_{2}$}, fill=white, text=black];
+    3 [as={$n_{3}$}, fill=white, text=black];
+    1 ->["hi"] 2;    1 ->["hi"] 3;    2 ->["hi"] 3;};
+\end{tikzpicture}
+\end{document}
