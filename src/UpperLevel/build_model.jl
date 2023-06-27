@@ -92,16 +92,23 @@ function _update_buses!(model::JuMP.AbstractModel)
 
     network   = model[:network_data]
     buses     = network.buses 
-    Ns, Nu, T = network.nb_substations, network.nb_loads,  model[:time_steps]  
+    Nu, Ns, T = network.nb_loads, network.nb_substations, model[:time_steps]  
 
     # Update substation buses
     # don't forget to add the fact that a substation can be built or not
     for (i,b) in enumerate(buses[1:Ns])
-        b.built = (b.S_rating > 0 || isapprox(JuMP.value.(model[:Beta][i]), 1; rtol = 1e-4)) 
-        b.S_rating += JuMP.value(model[:S_sub_capa][i]) # Additional capa
+        beta = isapprox(JuMP.value.(model[:Beta][i]), 1; rtol = 1e-4)
+        b.built  = (b.built || beta) 
         b.V_magn = sqrt.(JuMP.value.(model[:V_sqr][:, i]))
-        b.P_sup = JuMP.value.(model[:P_sub][:, i])
-        b.Q_sup = JuMP.value.(model[:Q_sub][:, i])
+
+        if b.built 
+            b.S_rating += (beta ? JuMP.value(model[:S_sub_capa][i]) : 0) # Additional capa
+            b.P_sup = JuMP.value.(model[:P_sub][:, i])
+            b.Q_sup = JuMP.value.(model[:Q_sub][:, i])
+        else 
+            b.S_rating = 0; b.P_sup = 0; b.Q_sup = 0
+        end
+       
     end
 
     # Update load buses 

@@ -146,7 +146,7 @@ function parse_commandline(;as_symbols::Bool=false)
         "--IR_DSO"
             help = "Interest rate DSO [%/year]"
             arg_type = Int64
-            default = 50
+            default = 0.06
     end
     return parse_args(s; as_symbols=as_symbols)
 end
@@ -161,35 +161,35 @@ end
 
 #function main()
 # ================= Parsing arguments of main command line ================
-parsed_args = parse_commandline(as_symbols=false)
-verbose     = parsed_args["verbose"]
+#parsed_args = parse_commandline(as_symbols=false)
+verbose     = true #parsed_args["verbose"]
 
 # ------- Choice of the model -------
-bilevel     = parsed_args["bilevel"]
+bilevel     = false #parsed_args["bilevel"]
 
 # ------- Profiles parameters -------
-nb_days     = parsed_args["days"]
-delta_t     = parsed_args["delta_t"]
-peak_power  = parsed_args["PP"]
-EV          = parsed_args["EV"]
-EHP         = parsed_args["EHP"]
+nb_days     = 2 #parsed_args["days"]
+delta_t     = 5 # parsed_args["delta_t"]
+peak_power  = 7.0 # parsed_args["PP"]
+EV          = false #parsed_args["EV"]
+EHP         = false #parsed_args["EHP"]
 
 # ------- Users parameters -------
-PV_pen        = parsed_args["PV_pen"]
-PV_capa       = parsed_args["PV_CAPA"]
-PV_cost       = parsed_args["PVC"]
-PV_conv_cost  = parsed_args["PVCC"]
-amort_PV_conv = parsed_args["AMORT_PV_CONV"]
-amort_PV      = parsed_args["AMORT_PV"]
-EIC           = parsed_args["EIC"]
-EEC           = parsed_args["EEC"]
-DSOEC         = parsed_args["DSOEC"]
-GCC           = parsed_args["GCC"]
+PV_pen        = 0.0     # parsed_args["PV_pen"]
+PV_capa       = 0.4     # parsed_args["PV_CAPA"]
+PV_cost       = 500.0   # parsed_args["PVC"]
+PV_conv_cost  = 200.0   # parsed_args["PVCC"]
+amort_PV_conv = 10      # parsed_args["AMORT_PV_CONV"]
+amort_PV      = 25      # parsed_args["AMORT_PV"]
+EIC           = 0.3     # parsed_args["EIC"]
+EEC           = 0.1     # parsed_args["EEC"]
+DSOEC         = 0.1     # parsed_args["DSOEC"]
+GCC           = 80.0    # parsed_args["GCC"]
 
 # ------- DSO parameters -------
-substation_cost   = parsed_args["SUB_COST"]
-amort_DSO         = parsed_args["AMORT_DSO"]
-interest_rate_DSO = parsed_args["IR_DSO"]
+substation_cost   = 1e3  # parsed_args["SUB_COST"]
+amort_DSO         = 50   # parsed_args["AMORT_DSO"]
+interest_rate_DSO = 0.06 # parsed_args["IR_DSO"]
 
 # ================= Printing the parameters of the simulation =============
 # Idea do the tables for each type of parameters !!!
@@ -217,8 +217,8 @@ profiles_data_dir = joinpath(root_dir, "ManchesterData", "LCT_profiles")
 
 # -- Loading the excel file containing the network topology --
 # Add choice for the test network
-# NETWORK_PATH = joinpath(network_data_dir, "network_Nahman_Peric_2S23H.xlsx") 
-NETWORK_PATH = joinpath(network_data_dir, "model_2S2H.xlsx") 
+NETWORK_PATH = joinpath(network_data_dir, "network_Nahman_Peric_2S23H.xlsx") 
+# NETWORK_PATH = joinpath(network_data_dir, "model_2S2H.xlsx") 
 pu_basis = define_pu_basis()
 # -- Fetching the network data --
 network, network_topology = get_network_data(NETWORK_PATH; max_pv_capa=PV_capa, pu_basis=pu_basis)
@@ -340,7 +340,7 @@ formulation = UpperLevel.Formulation(  powerflow = UpperLevel.BFM(),
                             )
 
 upper_model = UpperLevel.build_model(simulation; formulation=formulation)
-#objective, var_values, time = UpperLevel.solve_model(upper_model)
+objective, time = UpperLevel.solve_model(upper_model, formulation.powerflow)
 
 #println(objective)
 #println(var_values)
@@ -365,6 +365,5 @@ upper_model = UpperLevel.build_model(simulation; formulation=formulation)
 #                    delta_t=delta_t, id_profiles=ids_profiles[1])
 # Test for PV profiles 
 
-#end
 
 #main()

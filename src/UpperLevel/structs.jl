@@ -275,7 +275,7 @@ struct DSOCosts
     substation::Float64     # [kEUR/MVA]
     loss::Float64           # loss cost [€/kWh]
     amortization::Int64     # amortization period of DSO investements [years]
-    interest_rate::Int64    # interest rate DSO
+    interest_rate::Float64    # interest rate DSO
     money_basis::Float64    # money basis in k€
 end
 
