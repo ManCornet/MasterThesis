@@ -59,15 +59,20 @@ end
     
     Return value:
     -------------
-        - A structure of type Network that contains the network data
+        - nodes  : a list of all the nodes of the network
+        - buses  : a lit of all the buses of the network 
+        - Ns     : the number of susbtations 
+        - Ns_init: number of initial susbtations 
+        - Nu     :the number of user nodes
 """
 function get_buses_data(NETWORK_PATH::String, V_limits::VLIM, pu_basis::PU_BASIS, max_pv_capa::Float64)
-    # Get the sheet corresponding to network buses data
+    
     df_bus = DataFrames.DataFrame(XLSX.readtable(NETWORK_PATH, "bus"))
 
-    N = DataFrames.nrow(df_bus)            # Total number of buses
-    Ns = sum(df_bus.type .== "substation") # Number of substation buses
-    Nu = N - Ns                            # Number of user buses
+    N       = DataFrames.nrow(df_bus)            # Total number of buses
+    Ns      = sum(df_bus.type .== "substation")  # Number of substation buses
+    Ns_init = count(df_bus.S_G_init_mva .> 0)    # Number of already built substations
+    Nu      = N - Ns                             # Number of user buses
 
     nodes = [Node(i, (x=convert(Float64, df_bus.x[i]), y=convert(Float64, df_bus.y[i]))) for i in 1:N]
     sub_buses = [Substation(nodes[i], 
@@ -76,8 +81,7 @@ function get_buses_data(NETWORK_PATH::String, V_limits::VLIM, pu_basis::PU_BASIS
                             convert(Float64, df_bus.S_G_init_mva[i]) / pu_basis.base_power) 
                 for i in 1:Ns]
 
-    load_buses = [User(nodes[i], V_limits, max_pv_capa / pu_basis.base_power) for i in Ns+1:N]
-    Ns_init = count(df_bus.S_G_init_mva .> 0)
+    load_buses = [User(nodes[i], V_limits, max_pv_capa / pu_basis.base_power) for i in (Ns+1):N]
 
     return nodes, [sub_buses; load_buses], Ns, Ns_init, Nu
 end
@@ -93,15 +97,15 @@ end
     -------------
         - edges: list containing all the edges of the network graph
         - lines: list containing all the electrical lines of the network
+        - L    : number of lines
 """
 function get_lines_data(NETWORK_PATH::String, nodes::Vector{Node})
-    # Get the sheet corresponding to network lines data
+    
     df_line = DataFrames.DataFrame(XLSX.readtable(NETWORK_PATH, "line"))
 
     L = DataFrames.nrow(df_line) # number of lines
-    # Get all the edges of the network
+  
     edges = [Edge(l, nodes[df_line.from_bus[l]], nodes[df_line.to_bus[l]]) for l in 1:L]
-    # Get all the lines
     lines = [Line(edges[l], convert(Float64, df_line.length_km[l])) for l in 1:L]
     
     return edges, lines, L
@@ -117,6 +121,7 @@ end
     Return values:
     -------------
         - conds: list of available conductors to build a line
+        - K    : the number of conductor types
 """
 function get_conductors_data(NETWORK_PATH::String, pu_basis::PU_BASIS, money_basis::Float64)
     # Get the sheet corresponding to network buses data
@@ -164,19 +169,7 @@ function get_network_data(  NETWORK_PATH::String;
             NetworkTopology(nodes, edges)
 end
 
-# mutable struct Network
-#     lines::Vector{Line}
-#     buses::Vector{Bus}
-#     #sub_buses::Vector{Substation} # contains the substation buses
-#     #load_buses::Vector{User} # contains the load buses
-#     conductors::Vector{Conductor}
-#     nb_substations::Int64 
-#     nb_init_subs::Int64 
-#     nb_loads::Int64 
-#     nb_lines::Int64
-#     nb_conductors::Int64
-#     pu_basis::PU_BASIS
-# end
+
 
 function add_load_profiles!(network::Network, load_profiles::Matrix{Float64}; delta_t::Integer, pu_basis::PU_BASIS)
     Nu = get_nb_loads(network)
@@ -213,6 +206,9 @@ function add_PV_profiles!(  network::Network,
 end
 
 
+###############################################################################
+#                         OLD WAY TO PRINT NETWORK                            # 
+###############################################################################
 house_nodeshape(x_i, y_i, s) = 
 [
     (x_i + 0.7s * dx, y_i + 0.7s * dy) 
@@ -225,7 +221,9 @@ subs_nodeshape(x_i, y_i, s) = [
 ]
 
 # -- Network topology --
-function print_network_topology(topology::NetworkTopology; save_graph::Bool=true, show_graph::Bool=true)
+function print_network_topology(topology::NetworkTopology; 
+                                save_graph::Bool=true, 
+                                show_graph::Bool=true)::Nothing
 
     # -- Building the network graph -- 
     g = SimpleDiGraph(get_nb_nodes(topology))

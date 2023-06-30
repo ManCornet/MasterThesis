@@ -145,10 +145,8 @@ function build_daily_load_profiles( PROFILE_PATH::String,
     # ---- Aggregating profiles to change granularity ----
     lost_time_steps = 0
     if nb_agg_periods > 1 
-        println("hello")
         load_profiles, lost_time_steps = change_granularity(load_profiles; nb_agg_periods=nb_agg_periods)
     end
-    println("hello")
     return load_profiles, lost_time_steps
 end
 

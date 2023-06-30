@@ -10,9 +10,14 @@ function CRF(tau, n)
 end
 
 
-function _set_Objective!(model::JuMP.AbstractModel, c::CurrentConstraintsFormulation, v::VoltageConstraintsFormulation)::Nothing
+function _set_Objective!(   model::JuMP.AbstractModel, 
+                            c::CurrentConstraintsFormulation,
+                            v::VoltageConstraintsFormulation)::Nothing
+
     network_data = model[:network_data]
     DSO_costs = model[:DSO_costs] 
+    WEIGHT_I = model[:DSO_costs].WEIGHT_I 
+    WEIGHT_V = model[:DSO_costs].WEIGHT_V
 
     T = model[:time_steps]
     L = network_data.nb_lines
@@ -31,6 +36,8 @@ function _set_Objective!(model::JuMP.AbstractModel, c::CurrentConstraintsFormula
     # LOSS_COST ?
     # TIME_STEP: we can get it but in minutes i think
     # BASE_POWER is in 
+
+    # Here take into account the fact that substation can exist
     MULTIPLIER = DAYS_A_YEAR / model[:nb_sign_days] 
     fixed_costs = JuMP.@expression(
                             model, 
@@ -41,7 +48,7 @@ function _set_Objective!(model::JuMP.AbstractModel, c::CurrentConstraintsFormula
 
     loss_costs = JuMP.@expression(
                             model,
-                            MULTIPLIER * DSO_costs.loss * model[:delta_t] *  
+                            MULTIPLIER * DSO_costs.loss * model[:delta_t]/60 *  
                             pu_basis.base_power * sum(lines[l].length * conductors[k].r * 
                             model[:I_sqr_k][t, l, k] for t in 1:T, l in 1:L, k in 1:K)
     )

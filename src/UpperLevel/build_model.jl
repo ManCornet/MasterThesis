@@ -6,6 +6,13 @@
 # include("./formulation/constraints.jl")
 # include("./formulation/objective.jl")
 
+
+
+# Remove for large models the ability to have names inside the model
+# look at the UnitCommitment.jl package
+
+
+
 function build_model(   simulation::Simulation;
                         formulation = Formulation(),
                         TimeLimit = 600,
@@ -30,7 +37,7 @@ function build_model(   simulation::Simulation;
         model[:network_topology] = simulation.network_topology
         model[:DSO_costs]        = simulation.DSO_costs 
         model[:User_costs]       = simulation.User_costs 
-        model[:time_steps]       = 1 #simulation.nb_time_steps #ATTENTION PUT BACK TO NB TIME STEPS
+        model[:time_steps]       = simulation.nb_time_steps #ATTENTION PUT BACK TO NB TIME STEPS
         model[:delta_t]          = simulation.delta_t
         model[:nb_sign_days]     = simulation.nb_sign_days
         
@@ -40,20 +47,23 @@ function build_model(   simulation::Simulation;
         _add_BusVariables!(model, formulation.production)
         _add_BranchVariables!(model, formulation.powerflow)
         _add_CondChoiceVariables!(model, formulation.topology_choice, formulation.graph_type)
+        _add_VoltageOpConstraints!(model, formulation.v_constraints)
+        _add_CurrentOpConstraints!(model, formulation.topology_choice, formulation.i_constraints)
+
+        _set_Objective!(model, formulation.i_constraints, formulation.v_constraints)
 
         # -- Add the constraints of the model --
         _add_RefVoltages!(model)
-        if isa(formulation.production, DG)
-            _add_PVOperationConstraints!(model)
-        end
-        #_add_LoadOverSatisfaction!(model, formulation.production)
-        _add_SubstationConstraints!(model, formulation.convexity)
-        _add_CurrentOpConstraints!(model, formulation.topology_choice, formulation.i_constraints)
-        _add_VoltageOpConstraints!(model, formulation.v_constraints)
+        
+        # _add_LoadOverSatisfaction!(model, formulation.production)
         _add_PowerBalanceConstraints!(model, formulation.production, formulation.powerflow)
         _add_RotatedConicConstraints!(model, formulation.powerflow, formulation.convexity)
         _add_PowerFlowConstraints!(model, formulation.topology_choice,  formulation.graph_type, formulation.powerflow)
-        _set_Objective!(model, formulation.i_constraints, formulation.v_constraints)
+
+        _add_SubstationConstraints!(model, formulation.convexity)
+        if isa(formulation.production, DG)
+            _add_PVOperationConstraints!(model)
+        end
         
     end
     @info @sprintf("Built model in %.2f seconds", time_model);
@@ -62,17 +72,12 @@ end
 
 function solve_model(model::JuMP.AbstractModel,
                     power_flow::PowerFlowFormulation;
-                    verbose=false)
+                    verbose=true)
 
     JuMP.optimize!(model)
     JuMP.solution_summary(model, verbose=verbose)  
 
     if JuMP.termination_status(model) == JuMP.MOI.OPTIMAL
-        # var_values = Dict(  k => JuMP.value.(v) for (k, v) 
-        #                   in JuMP.object_dictionary(model) 
-        #                      if (v isa Union{JuMP.VariableRef, AbstractArray{JuMP.VariableRef}})
-        #                  )
-
         _update_buses!(model)
         _update_lines!(model, power_flow)
 
@@ -166,6 +171,5 @@ function _update_lines!(model::JuMP.AbstractModel, power_flow::PowerFlowFormulat
         end
 
     end
-
     return
 end

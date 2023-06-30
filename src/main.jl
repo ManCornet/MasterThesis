@@ -63,7 +63,7 @@ function parse_commandline(;as_symbols::Bool=false)
                                     dataset containing the load & PV profiles 
                     """
             arg_type = Int64
-            default = 5
+            default = 60
         
         "--PP"
             help = "Load peak power"
@@ -169,7 +169,7 @@ bilevel     = false #parsed_args["bilevel"]
 
 # ------- Profiles parameters -------
 nb_days     = 2 #parsed_args["days"]
-delta_t     = 5 # parsed_args["delta_t"]
+delta_t     = 60 # parsed_args["delta_t"]
 peak_power  = 7.0 # parsed_args["PP"]
 EV          = false #parsed_args["EV"]
 EHP         = false #parsed_args["EHP"]
@@ -321,8 +321,9 @@ end
 
 # =========================== Costs definition  ===========================
 money_basis = 1.0
+weight_I = weight_V = 1.0e-2
 
-DSO_costs  = UpperLevel.DSOCosts(substation_cost, 0.7 * EIC, amort_DSO, interest_rate_DSO, money_basis)
+DSO_costs  = UpperLevel.DSOCosts(substation_cost, 0.7 * EIC, amort_DSO, interest_rate_DSO, weight_I, weight_V, money_basis)
 User_costs = UpperLevel.UserCosts(PV_cost, PV_conv_cost, EIC, EEC, DSOEC, DSOEC, GCC, amort_PV, amort_PV_conv, money_basis)
 
 # =========================== Model  ===========================
@@ -336,7 +337,7 @@ formulation = UpperLevel.Formulation(  powerflow = UpperLevel.BFM(),
                             radiality = UpperLevel.SingleCommodityFlow(),
                             convexity = UpperLevel.Convex(),
                             v_constraints = UpperLevel.StrongVoltages(),
-                            i_constraints = UpperLevel.StrongCurrents(),
+                            i_constraints = UpperLevel.RelaxedCurrents(),
                             )
 
 upper_model = UpperLevel.build_model(simulation; formulation=formulation)

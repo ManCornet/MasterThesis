@@ -10,7 +10,7 @@ function _add_BusVariables!(model::JuMP.AbstractModel, ::NoDG)::Nothing
 
     JuMP.@variables(model,   
                     begin 
-                        V_sqr[1:T, 1:N]
+                        V_sqr[1:T, 1:N] >= 0
                         P_sub[1:T, 1:Ns]                            
                         Q_sub[1:T, 1:Ns]                                 
                         S_sub[1:T, 1:Ns] >= 0
@@ -32,7 +32,7 @@ function _add_BusVariables!(model::JuMP.AbstractModel, ::DG)::Nothing
 
     JuMP.@variables(model,   
                     begin 
-                        V_sqr[1:T, 1:N]
+                        V_sqr[1:T, 1:N]  >= 0
                         P_sub[1:T, 1:Ns]                            
                         Q_sub[1:T, 1:Ns]                                 
                         S_sub[1:T, 1:Ns] >= 0
@@ -49,7 +49,7 @@ function _add_BusVariables!(model::JuMP.AbstractModel, ::DG)::Nothing
     
     # load_buses = get_load_buses(network_data)
     for i in 1:Nu
-        JuMP.set_upper_bound(model[:p_pv_max][i], buses[Ns + i].max_pv_capa)
+        JuMP.set_upper_bound(p_pv_max[i], buses[Ns + i].max_pv_capa)
     end
  
     return
@@ -76,7 +76,7 @@ function _add_BranchVariables!(model::JuMP.AbstractModel, ::BIM)::Nothing
                         X_ij_k_i[1:T, 1:L, 1:K, 1:N]
                         X_ij_k_re[1:T, 1:L, 1:K] >= 0
                         X_ij_k_im[1:T, 1:L, 1:K]
-                        I_sqr_k[1:T, 1:L, 1:K]
+                        I_sqr_k[1:T, 1:L, 1:K] 
                     end
                     )
 
@@ -134,8 +134,8 @@ function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::T
 
         JuMP.@constraints(  model, 
                             begin
-                                [l=1:L], sum(model[:Alpha][l, k] for k in 1:K) == model[:Y][l]
-                                sum(model[:Y][l] for l in 1:L) == Nu 
+                                [l=1:L], sum(Alpha[l, k] for k in 1:K) == Y[l]
+                                sum(Y[l] for l in 1:L) == Nu 
                             end
                         )
                         
@@ -150,10 +150,10 @@ function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::T
 
         JuMP.@constraints(  model, 
                             begin
-                                [l=1:L], sum(model[:Alpha][l, k] for k in 1:K) <= 1 # we select only one conductor
-                                [t=1:T, l=1:L], sum(model[:Gamma][t, l, k] for k in 1:K) == model[:Y][t, l]
-                                [t=1:T, l=1:L, k=1:K], model[:Gamma][t, l, k] <= model[:Alpha][l, k]
-                                [t=1:T], sum(model[:Y][t, l] for l in 1:L) == Nu # radial in operation
+                                [l=1:L], sum(Alpha[l, k] for k in 1:K) <= 1 # we select only one conductor
+                                [t=1:T, l=1:L], sum(Gamma[t, l, k] for k in 1:K) == Y[t, l]
+                                [t=1:T, l=1:L, k=1:K], Gamma[t, l, k] <= Alpha[l, k]
+                                [t=1:T], sum(Y[t, l] for l in 1:L) == Nu # radial in operation
                             end
                         )
     end
@@ -188,8 +188,8 @@ function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::T
 
         JuMP.@constraints(  model, 
                             begin
-                                [l=1:L], sum(model[:Alpha][l, k] for k in 1:K) == model[:Y_send][l] + model[:Y_rec][l] 
-                                sum(model[:Y_send][l] + model[:Y_rec][l] for l in 1:L) == Nu 
+                                [l=1:L], sum(Alpha[l, k] for k in 1:K) == Y_send[l] + Y_rec[l] 
+                                sum(Y_send[l] + Y_rec[l] for l in 1:L) == Nu 
                             end
                         )
 
@@ -204,10 +204,10 @@ function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::T
                     )
         JuMP.@constraints(  model, 
                             begin
-                                [l=1:L], sum(model[:Alpha][l, k] for k in 1:K) <= 1 # we select only one conductor
-                                [t=1:T, l=1:L], sum(model[:Gamma][t, l, k] for k in 1:K) == model[:Y_send][t, l] + model[:Y_rec][t, l]
-                                [t=1:T, l=1:L, k=1:K], model[:Gamma][t, l, k] <= model[:Alpha][l, k]
-                                [t=1:T], sum(model[:Y_send][t, l] + model[:Y_rec][t, l] for l in 1:L) == Nu # radial in operation
+                                [l=1:L], sum(Alpha[l, k] for k in 1:K) <= 1 # we select only one conductor
+                                [t=1:T, l=1:L], sum(Gamma[t, l, k] for k in 1:K) == Y_send[t, l] + Y_rec[t, l]
+                                [t=1:T, l=1:L, k=1:K], Gamma[t, l, k] <= Alpha[l, k]
+                                [t=1:T], sum(Y_send[t, l] + Y_rec[t, l] for l in 1:L) == Nu # radial in operation
                             end
                         )
     end
