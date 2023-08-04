@@ -7,6 +7,7 @@ import Random
 import XLSX
 using Logging, Printf
 using Plots
+using Graphs, GraphRecipes
 
 export get_nb_loads, get_nb_substations, get_nb_conductors
 export get_nb_buses, get_nb_lines, get_nb_nodes, get_nb_time_steps
@@ -16,7 +17,7 @@ export add_load_profiles!, add_PV_profiles!, process_time_steps
 export build_model
 export save_struct
 export Network, NetworkTopology 
-export print_load_profiles, print_PV_profiles
+export print_load_profiles, print_PV_profiles, print_network_topology
 
 
 include("structs.jl")
