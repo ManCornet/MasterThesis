@@ -213,7 +213,7 @@ end
 
 function print_PV_profiles( fig_name::String,
                             profiles::Matrix{Float64};
-                            delta_t::Integer,
+                            delta_t::Integer=5,
                             id_profiles)
 
     time = vec(1:size(profiles)[1]) * delta_t
