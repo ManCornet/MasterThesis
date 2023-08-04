@@ -137,10 +137,15 @@ function _add_VoltageOpConstraints!(model::JuMP.AbstractModel, ::StrongVoltages)
 
     V_sqr = model[:V_sqr]
 
-    for t in 1:T, i in 1:N
+    for i in 1:N, t in 1:T
         JuMP.set_lower_bound(V_sqr[t, i], buses[i].V_limits.V_min^2)
+    end
+
+    for i in 1:N, t in 1:T
         JuMP.set_upper_bound(V_sqr[t, i], buses[i].V_limits.V_max^2)
     end
+
+    
     return 
 end
 
@@ -634,13 +639,156 @@ end
 # ---------------------------------------------------------------------------- #
 #                               Radiality constraints                          #
 # ---------------------------------------------------------------------------- #
-#=
-function _add_RadialityConstraints!(model::JuMP.AbstractModel, 
-                                    topology_choice::TopologyChoiceFormulation,
-                                    graph_type::TypeOfGraph,
-                                    ::RadialityFormulation)::Nothing
 
-    
+# -------------------------- Single Commodity Flow --------------------------- #
+
+function _add_RadialityConstraints!(model::JuMP.AbstractModel, 
+                                    graph_type::TypeOfGraph,
+                                    ::OneConfig,
+                                    ::SingleCommodityFlow)::Nothing
+
+    Omega_sending = model[:network_topology].sending_lines
+    Omega_receiving = model[:network_topology].receiving_lines
+    network = model[:network_data]
+    L = network.nb_lines
+    Ns_init = network.nb_init_subs
+    Ns = network.nb_substations
+    Nu = network.nb_loads
+    N = Ns + Nu
+    Beta = model[:Beta]
+    k_ij = model[:k_ij]
+
+    # idea : sum of all the flows sent by substation = Nu
+    # flow in the two directions ?
+    JuMP.@constraints(model, begin
+                    [i=(Ns+1):N], - sum(k_ij[l] for l in Omega_receiving[i]) + 
+                                sum(k_ij[l] for l in Omega_sending[i]) == -1
+                    [i=1:Ns],   - sum(k_ij[l] for l in Omega_receiving[i]) + 
+                                sum(k_ij[l] for l in Omega_sending[i]) >= 0
+                    [i=1:Ns_init],  - sum(k_ij[l] for l in Omega_receiving[i]) +
+                                    sum(k_ij[l] for l in Omega_sending[i]) <= Nu
+                    [i=(Ns_init+1):Ns], - sum(k_ij[l] for l in Omega_receiving[i]) +
+                                        sum(k_ij[l] for l in Omega_sending[i]) <= Nu * Beta[i]
+                        
+    end)
+
+    if isa(graph_type, Undirected)
+        Y = model[:Y]
+        JuMP.@constraints(model, begin
+            [l=1:L], k_ij[l] <= Nu * Y[l]               
+            [l=1:L], k_ij[l] >= - Nu * Y[l]
+        end)
+
+    elseif isa(graph_type, Directed)
+        Y_send = model[:Y_send]
+        Y_rec = model[:Y_rec]
+        JuMP.@constraints(model, begin
+            [l=1:L], k_ij[l] <= Nu * (Y_send[l] + Y_rec[l])               
+            [l=1:L], k_ij[l] >= - Nu * (Y_send[l] + Y_rec[l])     
+        end)
+    end
+
     return
 end
-=#
+
+function _add_RadialityConstraints!(model::JuMP.AbstractModel, 
+                                    graph_type::TypeOfGraph,
+                                    ::ReconfigAllowed,
+                                    ::SingleCommodityFlow)::Nothing
+
+    Omega_sending = model[:network_topology].sending_lines
+    Omega_receiving = model[:network_topology].receiving_lines
+    network = model[:network_data]
+    T = model[:time_steps]
+    L = network.nb_lines
+    Ns_init = network.nb_init_subs
+    Ns = network.nb_substations
+    Nu = network.nb_loads
+    N = Ns + Nu
+    Beta = model[:Beta]
+    k_ij = model[:k_ij]
+
+    JuMP.@constraints(model, begin
+                    [t=1:T, i=(Ns+1):N], - sum(k_ij[t, l] for l in Omega_receiving[i]) +
+                                        sum(k_ij[t, l] for l in Omega_sending[i]) == -1
+                    [t=1:T, i=1:Ns],   - sum(k_ij[t, l] for l in Omega_receiving[i]) +
+                                sum(k_ij[t, l] for l in Omega_sending[i]) >= 0
+                    [t=1:T, i=1:Ns_init],  - sum(k_ij[t, l] for l in Omega_receiving[i]) +
+                                     sum(k_ij[t, l] for l in Omega_sending[i]) <= Nu
+                    [t=1:T, i=(Ns_init+1):Ns], - sum(k_ij[t, l] for l in Omega_receiving[i]) +
+                                        sum(k_ij[t, l] for l in Omega_sending[i]) <= Nu * Beta[i]
+                        
+    end)
+
+    if isa(graph_type, Undirected)
+        Y = model[:Y]
+        JuMP.@constraints(model, begin
+            [t=1:T, l=1:L], k_ij[t, l] <= Nu * (Y[t, l])               
+            [t=1:T, l=1:L], k_ij[t, l] >= - Nu * (Y[t, l])
+        end)
+        
+    elseif isa(graph_type, Directed)
+        Y_send = model[:Y_send]
+        Y_rec = model[:Y_rec]
+        JuMP.@constraints(model, begin
+            [t=1:T, l=1:L], k_ij[t, l] <= Nu * (Y_send[t, l] + Y_rec[t, l])               
+            [t=1:T, l=1:L], k_ij[t, l] >= - Nu * (Y_send[t, l] + Y_rec[t, l])     
+        end)
+    end
+
+    return
+end
+
+# -------------------------- Multi Commodity Flow --------------------------- #
+function _add_RadialityConstraints!(model::JuMP.AbstractModel, 
+                                    graph_type::TypeOfGraph,
+                                    ::OneConfig,
+                                    ::MultiCommodityFlow)::Nothing
+
+    Omega_sending = model[:network_topology].sending_lines
+    Omega_receiving = model[:network_topology].receiving_lines
+    network = model[:network_data]
+    T = model[:time_steps]
+    L = network.nb_lines
+    Ns_init = network.nb_init_subs
+    Ns = network.nb_substations
+    Nu = network.nb_loads
+    N = Ns + Nu
+    Beta = model[:Beta]
+    k_ij = model[:k_ij]
+
+    
+    JuMP.@constraints(model, begin
+                    [i=1:Ns, w=(Ns+1):N], - sum(k_ij[l, w] for l in Omega_receiving[i]) + 
+                                            sum(k_ij[l, w] for l in Omega_sending[i]) >= 0
+                    [i=1:Ns_init, w=(Ns+1):N], - sum(k_ij[l, w] for l in Omega_receiving[i]) +
+                                                sum(k_ij[l, w] for l in Omega_sending[i]) <= 1
+                    [i=(Ns_init+1):Ns, w=(Ns+1):N],  -  sum(k_ij[l, w] for l in Omega_receiving[i]) +
+                                                        sum(k_ij[l, w] for l in Omega_sending[i]) <= Beta[i]
+                    [i=(Ns+1):N], - sum(k_ij[l, i] for l in Omega_receiving[i]) + 
+                                    sum(k_ij[l, i] for l in Omega_sending[i]) == -1
+                    [i=(Ns+1):N, w=(Ns+1):N; i != w], - sum(k_ij[l, w] for l in Omega_receiving[i]) +
+                                                        sum(k_ij[l, w] for l in Omega_sending[i]) == 0
+    end)
+   
+
+    if isa(graph_type, Undirected)
+        Y = model[:Y]
+        JuMP.@constraints(model, begin
+            [l=1:L, w=(Ns+1):N], k_ij[l, w] <= Y[l]
+            [l=1:L, w=(Ns+1):N], k_ij[l, w] >= -Y[l]
+        
+        end)
+
+    elseif isa(graph_type, Directed)
+        Y_send = model[:Y_send]
+        Y_rec = model[:Y_rec]
+        JuMP.@constraints(model, begin
+            [l=1:L, w=(Ns+1):N], k_ij[l, w] <= (Y_send[l] + Y_rec[l])
+            [l=1:L, w=(Ns+1):N], k_ij[l, w] >= -(Y_send[l] + Y_rec[l])
+        
+        end)
+    end
+
+    return
+end

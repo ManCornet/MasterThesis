@@ -14,16 +14,18 @@
 
 
 function build_model(   simulation::Simulation;
-                        formulation = Formulation(),
-                        TimeLimit = 600,
-                        MIPGap = 1e-2,
-                        MIPFocus = 1
+                        formulation::Formulation = Formulation(),
+                        TimeLimit::Float64 = 600.0,
+                        MIPGap::Float64 = 1e-2,
+                        MIPFocus::Int64 = 1, 
+                        set_names::Bool = false
                     )::Union{Nothing, JuMP.AbstractModel}
 
     @info "Building model..."
     time_model = @elapsed begin
         # ====================== Set up the Gurobi solver =====================
         model = JuMP.Model(Gurobi.Optimizer)
+        JuMP.set_string_names_on_creation(model, set_names)
         #JuMP.set_optimizer_attribute(model, "mode", Mode)
         JuMP.set_optimizer_attribute(model, "TimeLimit", TimeLimit)
         JuMP.set_optimizer_attribute(model, "MIPGap", MIPGap)
@@ -58,12 +60,17 @@ function build_model(   simulation::Simulation;
         # _add_LoadOverSatisfaction!(model, formulation.production)
         _add_PowerBalanceConstraints!(model, formulation.production, formulation.powerflow)
         _add_RotatedConicConstraints!(model, formulation.powerflow, formulation.convexity)
-        _add_PowerFlowConstraints!(model, formulation.topology_choice,  formulation.graph_type, formulation.powerflow)
+        _add_PowerFlowConstraints!(model, formulation.topology_choice, formulation.graph_type, formulation.powerflow)
 
         _add_SubstationConstraints!(model, formulation.convexity)
         if isa(formulation.production, DG)
             _add_PVOperationConstraints!(model)
         end
+        _add_RadialityVariables!(model, formulation.topology_choice, formulation.radiality)
+        _add_RadialityConstraints!( model, 
+                                    formulation.graph_type,
+                                    formulation.topology_choice,
+                                    formulation.radiality)::Nothing
         
     end
     @info @sprintf("Built model in %.2f seconds", time_model);
@@ -111,7 +118,9 @@ function _update_buses!(model::JuMP.AbstractModel)
             b.P_sup = JuMP.value.(model[:P_sub][:, i])
             b.Q_sup = JuMP.value.(model[:Q_sub][:, i])
         else 
-            b.S_rating = 0; b.P_sup = 0; b.Q_sup = 0
+            b.S_rating = 0.0 
+            b.P_sup = zeros(Float64, T)
+            b.Q_sup = zeros(Float64, T)
         end
        
     end

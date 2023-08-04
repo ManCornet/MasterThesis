@@ -1,0 +1,72 @@
+\documentclass{standalone}
+\usepackage{tikz}
+\usepackage{amsmath}
+\usetikzlibrary{graphs, quotes, arrows.meta, positioning}
+
+\begin{document}
+\begin{tikzpicture}[
+    every label/.style = {align=center, font=\tiny, inner sep=2pt},
+    every edge quotes/.style = {font=\scriptsize, text=black, fill=white, inner sep=2pt}
+    ]
+\graph [no placement]
+{
+    1 [x=35.3cm, y=24.22cm, as={$\mathcal{S}_{1}$}, rectangle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    2 [x=35.4cm, y=32.8cm, as={$\mathcal{S}_{2}$}, rectangle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    3 [x=36.044cm, y=43.068cm, as={$\mathcal{L}_{3}$}, circle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    4 [x=26.616cm, y=26.332cm, as={$\mathcal{L}_{4}$}, circle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    5 [x=27.704cm, y=22.732cm, as={$\mathcal{L}_{5}$}, circle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    6 [x=32.616cm, y=26.616cm, as={$\mathcal{L}_{6}$}, circle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    7 [x=33.3cm, y=29.816cm, as={$\mathcal{L}_{7}$}, circle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    8 [x=33.416cm, y=32.56cm, as={$\mathcal{L}_{8}$}, circle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    9 [x=29.532cm, y=39.812cm, as={$\mathcal{L}_{9}$}, circle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    10 [x=33.3cm, y=24.104cm, as={$\mathcal{L}_{10}$}, circle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    11 [x=38.384cm, y=19.764cm, as={$\mathcal{L}_{11}$}, circle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    12 [x=31.244cm, y=19.708cm, as={$\mathcal{L}_{12}$}, circle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    13 [x=37.412cm, y=17.992cm, as={$\mathcal{L}_{13}$}, circle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    14 [x=31.7cm, y=23.476cm, as={$\mathcal{L}_{14}$}, circle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    15 [x=35.072cm, y=18.848cm, as={$\mathcal{L}_{15}$}, circle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    16 [x=37.3cm, y=26.4cm, as={$\mathcal{L}_{16}$}, circle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    17 [x=33.128cm, y=22.392cm, as={$\mathcal{L}_{17}$}, circle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    18 [x=33.872cm, y=20.792cm, as={$\mathcal{L}_{18}$}, circle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    19 [x=35.472cm, y=23.132cm, as={$\mathcal{L}_{19}$}, circle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    20 [x=36.4cm, y=24.848cm, as={$\mathcal{L}_{20}$}, circle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    21 [x=36.156cm, y=21.02cm, as={$\mathcal{L}_{21}$}, circle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    22 [x=37.7cm, y=22.448cm, as={$\mathcal{L}_{22}$}, circle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    23 [x=30.216cm, y=22.22cm, as={$\mathcal{L}_{23}$}, circle, draw, fill=white, minimum size=1em, inner sep=1pt];
+    1 ->[thick, "2.193"] 10;
+    10 ->[thick, "0.0"] 20;
+    10 ->[thick, "0.974"] 14;
+    10 ->[thick, "1.113"] 19;
+    19 ->[thick, "0.242"] 20;
+    19 ->[thick, "0.321"] 21;
+    19 ->[thick, "0.394"] 22;
+    22 ->[thick, "0.118"] 16;
+    22 --[gray, dashed] 11;
+    21 ->[thick, "0.245"] 11;
+    11 ->[thick, "0.075"] 13;
+    13 --[gray, dashed] 15;
+    15 --[gray, dashed] 21;
+    18 ->[thick, "0.132"] 15;
+    15 --[gray, dashed] 12;
+    17 ->[thick, "0.358"] 18;
+    14 ->[thick, "0.523"] 17;
+    23 ->[thick, "0.076"] 12;
+    14 ->[thick, "0.318"] 23;
+    23 ->[thick, "0.225"] 5;
+    5 --[gray, dashed] 14;
+    5 ->[thick, "0.085"] 4;
+    4 --[gray, dashed] 6;
+    14 --[gray, dashed] 6;
+    6 --[gray, dashed] 16;
+    7 ->[thick, "0.064"] 6;
+    8 ->[thick, "0.185"] 7;
+    2 ->[thick, "0.704"] 8;
+    8 ->[thick, "0.348"] 9;
+    8 --[gray, dashed] 4;
+    4 --[gray, dashed] 9;
+    9 ->[thick, "0.175"] 3;
+    8 --[gray, dashed] 3;
+    3 --[gray, dashed] 16;
+};
+\end{tikzpicture}
+\end{document}

@@ -15,7 +15,7 @@ function _add_BusVariables!(model::JuMP.AbstractModel, ::NoDG)::Nothing
                         Q_sub[1:T, 1:Ns]                                 
                         S_sub[1:T, 1:Ns] >= 0
                         S_sub_capa[1:Ns] >= 0                                    
-                        Beta[1:Ns], (binary=true)  
+                        Beta[1:Ns], Bin
                     end
                     )
     return
@@ -40,7 +40,7 @@ function _add_BusVariables!(model::JuMP.AbstractModel, ::DG)::Nothing
                         p_pv[1:T, 1:Nu]  >= 0
                         s_conv_pv[1:Nu]  >= 0
                         p_pv_max[1:Nu]   >= 0
-                        Beta[1:Ns], (binary=true)  
+                        Beta[1:Ns], Bin
                     end
                     )
 
@@ -73,14 +73,14 @@ function _add_BranchVariables!(model::JuMP.AbstractModel, ::BIM)::Nothing
                         P_ji_k[1:T, 1:L, 1:K] 
                         Q_ij_k[1:T, 1:L, 1:K]                           
                         Q_ji_k[1:T, 1:L, 1:K]
-                        X_ij_k_i[1:T, 1:L, 1:K, 1:N]
+                        X_ij_k_i[1:T, 1:L, 1:K, 1:N] >= 0
                         X_ij_k_re[1:T, 1:L, 1:K] >= 0
                         X_ij_k_im[1:T, 1:L, 1:K]
                         I_sqr_k[1:T, 1:L, 1:K] 
                     end
                     )
 
-    for t in 1:T, l in 1:L, k in 1:K, i in 1:N 
+    for i in 1:N, k in 1:K, l in 1:L, t in 1:T
         ifrom = network_data.lines[l].edge.from_node.id
         ito   = network_data.lines[l].edge.to_node.id
         #println("($ifrom, $ito)")
@@ -127,8 +127,8 @@ function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::T
     if isa(topology_choice, OneConfig) 
         JuMP.@variables(model,   
                     begin 
-                        Alpha[1:L, 1:K], (binary = true)
-                        Y[1:L], (binary = true) 
+                        Alpha[1:L, 1:K], Bin
+                        Y[1:L], Bin
                     end
                     )
 
@@ -142,9 +142,9 @@ function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::T
     elseif isa(topology_choice, ReconfigAllowed)
         JuMP.@variables(model,   
                     begin 
-                        Alpha[1:L, 1:K], (binary = true)
-                        Gamma[1:T, 1:L, 1:K], (binary = true)
-                        Y[1:T, 1:L], (binary = true) 
+                        Alpha[1:L, 1:K], Bin
+                        Gamma[1:T, 1:L, 1:K], Bin
+                        Y[1:T, 1:L], Bin 
                     end
                     )
 
@@ -160,18 +160,13 @@ function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::T
     return
 end
 
-function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::TopologyChoiceFormulation, ::Directed)
+function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::TopologyChoiceFormulation, ::Directed)::Nothing
     
     network_data = model[:network_data]
     T = model[:time_steps]
     L = get_nb_lines(network_data)
     K = get_nb_conductors(network_data)
-    Nu = get_nb_loads(network_data)
-
-    index = isa(topology_choice, OneConfig) ? (1:L) : (1:T, 1:L)
-
-    
-                    
+    Nu = get_nb_loads(network_data)       
 
     # If one line has been built (always select the same conductor for all time_steps)
     # Add the constraints linking alpha and other constraints
@@ -180,9 +175,9 @@ function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::T
     if isa(topology_choice, OneConfig) 
         JuMP.@variables(model,   
                     begin 
-                        Alpha[1:L, 1:K], (binary = true)
-                        Y_send[1:L], (binary = true)  
-                        Y_rec[1:L], (binary = true)  
+                        Alpha[1:L, 1:K], Bin
+                        Y_send[1:L], Bin 
+                        Y_rec[1:L], Bin 
                     end
                     )
 
@@ -215,6 +210,7 @@ function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::T
     return
 end
 
+
 # ---------------------------------------------------------------------------- #
 #                          Radiality variables                                 #
 # ---------------------------------------------------------------------------- #
@@ -226,15 +222,37 @@ end
 # 3° SpanningTree constraints (called like that by Jabr what is the real name of that ?)
 #    => parent child relation ship
 # 4° + for each allow the version with reconfiguration etc
+
 function _add_RadialityVariables!(model::JuMP.AbstractModel, topology_choice::TopologyChoiceFormulation, ::SingleCommodityFlow)::Nothing 
 
     network_data = model[:network_data]
     T = model[:time_steps]
     L = get_nb_lines(network_data)
 
-    JuMP.@variable(model, k_ij[compute_index((1:L), 1:T, topology_choice)])
+    if isa(topology_choice, OneConfig)
+        JuMP.@variable(model, k_ij[1:L])
+    elseif isa(topology_choice, ReconfigAllowed)
+        JuMP.@variable(model, k_ij[1:T, 1:L])
+    end
+
     return
 end
+
+function _add_RadialityVariables!(model::JuMP.AbstractModel, topology_choice::TopologyChoiceFormulation, ::MultiCommodityFlow)::Nothing 
+
+    network_data = model[:network_data]
+    T = model[:time_steps]
+    L = get_nb_lines(network_data)
+
+    if isa(topology_choice, OneConfig)
+        JuMP.@variable(model, k_ij[1:L])
+    elseif isa(topology_choice, ReconfigAllowed)
+        JuMP.@variable(model, k_ij[1:T, 1:L])
+    end
+
+    return
+end
+
 
 
 

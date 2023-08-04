@@ -159,7 +159,6 @@ function _update_lines!(model::JuMP.AbstractModel, power_flow::PowerFlowFormulat
                 l.Q_rec = l.Q_send .- l.conductor.x * l.length .* l.I_magn.^2
             end
         end
-
     end
     return
 end

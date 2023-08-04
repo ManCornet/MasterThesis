@@ -166,14 +166,14 @@ function UL_BFM_1P(network_dict::Dict, obj_dict::Dict; radiality::Integer=0, gen
      @constraint(model, 
                 voltage_value1[l=L],
                 V_sqr[line_ends[l][2]] - V_sqr[line_ends[l][1]] 
-                <= - sum(2 * (R[l, k] * P_ij_k[l, k] + X[l, k] * Q_ij_k[l, k]) 
+                <= sum(-2 * (R[l, k] * P_ij_k[l, k] + X[l, k] * Q_ij_k[l, k]) 
                 + (R[l, k]^2 + X[l, k]^2) * I_sqr_k[l, k] for k in K) 
                 + M * (1 - (y_send[l] + y_rec[l]))
             )
     @constraint(model, 
                 voltage_value2[l=L],
                 V_sqr[line_ends[l][2]] - V_sqr[line_ends[l][1]] 
-                >= - sum(2 * (R[l, k] * P_ij_k[l, k] + X[l, k] * Q_ij_k[l, k]) 
+                >= sum(-2 * (R[l, k] * P_ij_k[l, k] + X[l, k] * Q_ij_k[l, k]) 
                 + (R[l, k]^2 + X[l, k]^2) * I_sqr_k[l, k] for k in K) 
                 - M * (1 - (y_send[l] + y_rec[l]))
         )

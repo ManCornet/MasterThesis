@@ -16,12 +16,12 @@
 # Activating the julia environement
 # Path: I must add in terminal julia --project -- src/main.jl --
 
-include("./UpperLevel/UpperLevel.jl")
-include("utils.jl")
+# include("./UpperLevel/UpperLevel.jl")
+# include("utils.jl")
 
-using ArgParse, PrettyTables
-using Plots
-using .UpperLevel
+# using ArgParse, PrettyTables
+# using Plots
+# using .UpperLevel
 
 # include("structs.jl")
 # include("read_network_data.jl")
@@ -169,7 +169,7 @@ bilevel     = false #parsed_args["bilevel"]
 
 # ------- Profiles parameters -------
 nb_days     = 2 #parsed_args["days"]
-delta_t     = 60 # parsed_args["delta_t"]
+delta_t     = 60*12 # parsed_args["delta_t"]
 peak_power  = 7.0 # parsed_args["PP"]
 EV          = false #parsed_args["EV"]
 EHP         = false #parsed_args["EHP"]
@@ -218,7 +218,7 @@ profiles_data_dir = joinpath(root_dir, "ManchesterData", "LCT_profiles")
 # -- Loading the excel file containing the network topology --
 # Add choice for the test network
 NETWORK_PATH = joinpath(network_data_dir, "network_Nahman_Peric_2S23H.xlsx") 
-# NETWORK_PATH = joinpath(network_data_dir, "model_2S2H.xlsx") 
+#NETWORK_PATH = joinpath(network_data_dir, "model_2S2H.xlsx") 
 pu_basis = define_pu_basis()
 # -- Fetching the network data --
 network, network_topology = get_network_data(NETWORK_PATH; max_pv_capa=PV_capa, pu_basis=pu_basis)
@@ -332,7 +332,7 @@ nb_sign_days = length(PROFILE_PATHS)
 simulation  = UpperLevel.Simulation(network, network_topology, DSO_costs, User_costs, nb_sign_days)
 formulation = UpperLevel.Formulation(  powerflow = UpperLevel.BFM(),
                             production = UpperLevel.NoDG(),
-                            topology_choice = UpperLevel.OneConfig(),
+                            topology_choice = UpperLevel.ReconfigAllowed(),
                             graph_type = UpperLevel.Undirected(),
                             radiality = UpperLevel.SingleCommodityFlow(),
                             convexity = UpperLevel.Convex(),
@@ -340,7 +340,7 @@ formulation = UpperLevel.Formulation(  powerflow = UpperLevel.BFM(),
                             i_constraints = UpperLevel.RelaxedCurrents(),
                             )
 
-upper_model = UpperLevel.build_model(simulation; formulation=formulation)
+upper_model = UpperLevel.build_model(simulation; formulation=formulation, set_names=true)
 objective, time = UpperLevel.solve_model(upper_model, formulation.powerflow)
 
 #println(objective)
