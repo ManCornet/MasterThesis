@@ -1,13 +1,14 @@
 module UpperLevel
 
-import JuMP, Gurobi
 import StructTypes, JSON3
 import DataFrames
 import Random 
 import XLSX
+using JuMP, Gurobi
 using Logging, Printf
 using Plots
 using Graphs, GraphRecipes
+using PrettyTables, Latexify
 
 export get_nb_loads, get_nb_substations, get_nb_conductors
 export get_nb_buses, get_nb_lines, get_nb_nodes, get_nb_time_steps

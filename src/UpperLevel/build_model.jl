@@ -39,9 +39,10 @@ function build_model(   simulation::Simulation;
         model[:network_topology] = simulation.network_topology
         model[:DSO_costs]        = simulation.DSO_costs 
         model[:User_costs]       = simulation.User_costs 
-        model[:time_steps]       = 1 #simulation.nb_time_steps #ATTENTION PUT BACK TO NB TIME STEPS
+        model[:time_steps]       = simulation.nb_time_steps #ATTENTION PUT BACK TO NB TIME STEPS
         model[:delta_t]          = simulation.delta_t
         model[:nb_sign_days]     = simulation.nb_sign_days
+        model[:bilevel]          = simulation.bilevel
         
         # =========================== Build the model =========================
 

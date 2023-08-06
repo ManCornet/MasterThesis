@@ -306,14 +306,15 @@ struct Simulation
     nb_sign_days::Int64 # number of significative days to simulate
     nb_time_steps::Int64
     delta_t::Float64
+    bilevel::Bool
 
-    function Simulation(network::Network,network_topology::NetworkTopology, DSO_costs::DSOCosts, User_costs::UserCosts, nb_sign_days::Int64)
+    function Simulation(network::Network,network_topology::NetworkTopology, DSO_costs::DSOCosts, User_costs::UserCosts, nb_sign_days::Int64, bilevel::Bool)
 
         Ns = network.nb_substations
         nb_time_steps = get_nb_time_steps(network.buses[Ns + 1].load_profile)
         delta_t       = network.buses[Ns + 1].load_profile.granularity
 
-        return new(network, network_topology, DSO_costs, User_costs, nb_sign_days, nb_time_steps, delta_t)
+        return new(network, network_topology, DSO_costs, User_costs, nb_sign_days, nb_time_steps, delta_t, bilevel::Bool)
     end
 end
 

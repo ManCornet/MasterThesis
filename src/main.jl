@@ -329,7 +329,7 @@ User_costs = UpperLevel.UserCosts(PV_cost, PV_conv_cost, EIC, EEC, DSOEC, DSOEC,
 # =========================== Model  ===========================
 # -- Running the model -- 
 nb_sign_days = length(PROFILE_PATHS)
-simulation  = UpperLevel.Simulation(network, network_topology, DSO_costs, User_costs, nb_sign_days)
+simulation  = UpperLevel.Simulation(network, network_topology, DSO_costs, User_costs, nb_sign_days, bilevel)
 formulation = UpperLevel.Formulation(  powerflow = UpperLevel.BFM(),
                             production = UpperLevel.NoDG(),
                             topology_choice = UpperLevel.OneConfig(),
