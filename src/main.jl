@@ -217,8 +217,8 @@ profiles_data_dir = joinpath(root_dir, "ManchesterData", "LCT_profiles")
 
 # -- Loading the excel file containing the network topology --
 # Add choice for the test network
-NETWORK_PATH = joinpath(network_data_dir, "network_Nahman_Peric_2S23H.xlsx") 
-#NETWORK_PATH = joinpath(network_data_dir, "model_2S2H.xlsx") 
+#NETWORK_PATH = joinpath(network_data_dir, "network_Nahman_Peric_2S23H.xlsx") 
+NETWORK_PATH = joinpath(network_data_dir, "model_2S2H.xlsx") 
 pu_basis = define_pu_basis()
 # -- Fetching the network data --
 network, network_topology = get_network_data(NETWORK_PATH; max_pv_capa=PV_capa, pu_basis=pu_basis)
@@ -332,16 +332,15 @@ nb_sign_days = length(PROFILE_PATHS)
 simulation  = UpperLevel.Simulation(network, network_topology, DSO_costs, User_costs, nb_sign_days)
 formulation = UpperLevel.Formulation(  powerflow = UpperLevel.BFM(),
                             production = UpperLevel.NoDG(),
-                            topology_choice = UpperLevel.ReconfigAllowed(),
+                            topology_choice = UpperLevel.OneConfig(),
                             graph_type = UpperLevel.Undirected(),
                             radiality = UpperLevel.SingleCommodityFlow(),
                             convexity = UpperLevel.Convex(),
                             v_constraints = UpperLevel.StrongVoltages(),
-                            i_constraints = UpperLevel.RelaxedCurrents(),
-                            )
+                            i_constraints = UpperLevel.StrongCurrents())
 
 upper_model = UpperLevel.build_model(simulation; formulation=formulation, set_names=true)
-objective, time = UpperLevel.solve_model(upper_model, formulation.powerflow)
+#objective, time = UpperLevel.solve_model(upper_model, formulation.powerflow)
 
 #println(objective)
 #println(var_values)

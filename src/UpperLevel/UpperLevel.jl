@@ -17,7 +17,7 @@ export add_load_profiles!, add_PV_profiles!, process_time_steps
 export build_model
 export save_struct
 export Network, NetworkTopology 
-export print_load_profiles, print_PV_profiles, print_network_topology
+export print_load_profiles, print_PV_profiles, print_network_tikz
 
 
 include("structs.jl")

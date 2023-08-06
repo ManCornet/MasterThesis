@@ -239,7 +239,8 @@ end
 # ---------------------------------------------------------------------------- #
 #                               PowerBalance constraints                       #
 # ---------------------------------------------------------------------------- #
-function _add_PowerBalanceConstraints!( model::JuMP.AbstractModel, 
+function _add_PowerBalanceConstraints!( model::JuMP.AbstractModel,
+                                        topology_choice::TopologyChoiceFormulation, 
                                         prod_type::TypeofProdFormulation, 
                                         ::BFM
                                     )::Nothing
@@ -295,16 +296,30 @@ function _add_PowerBalanceConstraints!( model::JuMP.AbstractModel,
                                             sum(Q_ij_k[t, l, k] for l in Omega_sending[Ns + i], k in 1:K)
                         
                         # Maybe move this at another place in the code but temporary to test
-                        [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Alpha[l, k] # indispensable
-                        [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] >= -conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Alpha[l, k] # indispensable
-                        [t=1:T, l=1:L, k=1:K], Q_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Alpha[l, k] # indispensable
-                        [t=1:T, l=1:L, k=1:K], Q_ij_k[t, l, k] >= -conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Alpha[l, k] # indispensable
                         end
                     )
+
+    if isa(topology_choice, OneConfig)
+        JuMP.@constraints(model, begin
+            [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Alpha[l, k] # indispensable
+            [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] >= -conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Alpha[l, k] # indispensable
+            [t=1:T, l=1:L, k=1:K], Q_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Alpha[l, k] # indispensable
+            [t=1:T, l=1:L, k=1:K], Q_ij_k[t, l, k] >= -conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Alpha[l, k] # indispensable
+        end)
+    elseif isa(topology_choice, ReconfigAllowed)
+        JuMP.@constraints(model, begin
+            [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k] # indispensable
+            [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] >= -conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k]  # indispensable
+            [t=1:T, l=1:L, k=1:K], Q_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k]  # indispensable
+            [t=1:T, l=1:L, k=1:K], Q_ij_k[t, l, k] >= -conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k]  # indispensable
+        end)
+    end
+    
     return
 end
 
 function _add_PowerBalanceConstraints!( model::JuMP.AbstractModel, 
+                                        topology_choice::TopologyChoiceFormulation, 
                                         prod_type::TypeofProdFormulation, 
                                         ::BIM
                                     )::Nothing
@@ -345,7 +360,21 @@ function _add_PowerBalanceConstraints!( model::JuMP.AbstractModel,
                                             sum(Q_ij_k[t, l, k] for l in Omega_sending[Ns + i], k in 1:K)
                     end)
 
-                   
+    if isa(topology_choice, OneConfig)
+        JuMP.@constraints(model, begin
+            [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Alpha[l, k] # indispensable
+            [t=1:T, l=1:L, k=1:K], P_ji_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Alpha[l, k] # indispensable
+            [t=1:T, l=1:L, k=1:K], Q_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Alpha[l, k] # indispensable
+            [t=1:T, l=1:L, k=1:K], Q_ji_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Alpha[l, k] # indispensable
+        end)
+    elseif isa(topology_choice, ReconfigAllowed)
+        JuMP.@constraints(model, begin
+            [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k] # indispensable
+            [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k]  # indispensable
+            [t=1:T, l=1:L, k=1:K], Q_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k]  # indispensable
+            [t=1:T, l=1:L, k=1:K], Q_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k]  # indispensable
+        end)
+    end          
     return 
 end
 

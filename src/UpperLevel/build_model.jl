@@ -39,7 +39,7 @@ function build_model(   simulation::Simulation;
         model[:network_topology] = simulation.network_topology
         model[:DSO_costs]        = simulation.DSO_costs 
         model[:User_costs]       = simulation.User_costs 
-        model[:time_steps]       = simulation.nb_time_steps #ATTENTION PUT BACK TO NB TIME STEPS
+        model[:time_steps]       = 1 #simulation.nb_time_steps #ATTENTION PUT BACK TO NB TIME STEPS
         model[:delta_t]          = simulation.delta_t
         model[:nb_sign_days]     = simulation.nb_sign_days
         
@@ -58,7 +58,7 @@ function build_model(   simulation::Simulation;
         _add_RefVoltages!(model)
         
         # _add_LoadOverSatisfaction!(model, formulation.production)
-        _add_PowerBalanceConstraints!(model, formulation.production, formulation.powerflow)
+        _add_PowerBalanceConstraints!(model, formulation.topology_choice, formulation.production, formulation.powerflow)
         _add_RotatedConicConstraints!(model, formulation.powerflow, formulation.convexity)
         _add_PowerFlowConstraints!(model, formulation.topology_choice, formulation.graph_type, formulation.powerflow)
 
@@ -66,11 +66,11 @@ function build_model(   simulation::Simulation;
         if isa(formulation.production, DG)
             _add_PVOperationConstraints!(model)
         end
-        _add_RadialityVariables!(model, formulation.topology_choice, formulation.radiality)
-        _add_RadialityConstraints!( model, 
-                                    formulation.graph_type,
-                                    formulation.topology_choice,
-                                    formulation.radiality)::Nothing
+        #_add_RadialityVariables!(model, formulation.topology_choice, formulation.radiality)
+        #_add_RadialityConstraints!( model, 
+                                    # formulation.graph_type,
+                                    # formulation.topology_choice,
+                                    # formulation.radiality)::Nothing
         
     end
     @info @sprintf("Built model in %.2f seconds", time_model);
@@ -146,8 +146,9 @@ function _update_lines!(model::JuMP.AbstractModel, power_flow::PowerFlowFormulat
     lines      = model[:network_data].lines
     conductors = model[:network_data].conductors
 
-    for (i, l) in enumerate(lines)
+    for l in lines
 
+        i = l.edge.id
         # update the built field 
         l.built = isapprox(JuMP.value(sum(model[:Alpha][i, :])), 1; rtol = 1e-4)
 
@@ -161,7 +162,7 @@ function _update_lines!(model::JuMP.AbstractModel, power_flow::PowerFlowFormulat
 
             # update the current field
             l.I_magn = sqrt.(vec(JuMP.value.(sum(model[:I_sqr_k][:, i, :], dims=2))))
-        
+
             # Update the power field + direction of power flow : 1 if from_node 
             # Change edge struct also (normalement ça va se changer aussi dans network_topology)
     

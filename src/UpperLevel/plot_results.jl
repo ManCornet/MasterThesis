@@ -1,5 +1,5 @@
-"""Draws a graph using TikZ."""
-function showgraph_tikz(network, time_step, x_scale, y_scale;
+"""Draws a resulting network at a specifi time step using TikZ."""
+function print_network_tikz(network, time_step, x_scale, y_scale;
                         dir=pwd(), filename="graph", display=true)
 
     preamble = """\\documentclass{standalone}
@@ -41,7 +41,6 @@ function showgraph_tikz(network, time_step, x_scale, y_scale;
             if n in [1, 2]
                 x_coord += 0.5
             elseif n == 16
-                x_coord += 0.1
                 y_coord += 0.1
             elseif n == 20
                 y_coord -=  0.1
@@ -68,7 +67,7 @@ function showgraph_tikz(network, time_step, x_scale, y_scale;
                 col = P_gen >= 0 ? "\\color{Ulg_blue}" : "\\color{Ulg_red}"
                 if b.built
                     write(file,
-                    "    $n [x=$(x)cm, y=$(y)cm, as={\$\\mathcal{S}_{$n}\$  \\vspace{0.1em}  \\scriptsize \$\\mathbf{$col $P_gen}\$}, $(style_sub), ultrathick];\n")
+                    "    $n [x=$(x)cm, y=$(y)cm, as={\$\\mathcal{S}_{$n}\$  \\vspace{0.1em}  \\scriptsize \$\\mathbf{$col $P_gen}\$}, $(style_sub), very thick];\n")
                 else 
                     write(file,
                     "    $n [x=$(x)cm, y=$(y)cm, as={\$\\mathcal{S}_{$n}\$ \\vspace{0.1em}  \\scriptsize \$\\mathbf{$col $P_gen}\$}, $(style_sub)];\n")
@@ -77,6 +76,7 @@ function showgraph_tikz(network, time_step, x_scale, y_scale;
                 P_cons = round(b.load_profile.time_serie[time_step] * base_power; digits = 2)
                 P_gen = isnothing(b.PV_installation) ? 0.0 : b.PV_installation.P[time_step]*base_power 
                 P_gen = round(P_gen; digits=2)
+                
                 write(file,
                 "    $n [x=$(x)cm, y=$(y)cm, as={\$\\mathcal{U}_{$nu}\$  \\vspace{-0.2em} \\scriptsize  \$ \\color{Ulg_blue} \\mathbf{$P_gen}\$ \\vspace{0.1em} \\scriptsize \$ \\color{Ulg_red} \\mathbf{$P_cons}\$}, $(style_load)];\n")
             end
@@ -84,15 +84,27 @@ function showgraph_tikz(network, time_step, x_scale, y_scale;
 
         for l in network.lines
             if l.built
-                if l.P_send[time_step] >= 0
+                if l.P_send[time_step] >= l.P_rec[time_step]
                     i = l.edge.from_node.id ; j = l.edge.to_node.id
                     p = l.P_send[time_step] * base_power
                 else 
                     i = l.edge.to_node.id ; j = l.edge.from_node.id
                     p = abs(l.P_rec[time_step]) * base_power
                 end
-                write(file,
-                "    $(i) ->[thick, \"$(round(p, digits=2))\"] $(j);\n")
+                if l.conductor.name == "Poppy"
+                    write(file,
+                    "    $(i) ->[\"$(round(p, digits=2))\"] $(j);\n")
+                elseif l.conductor.name == "Oxlip"
+                    write(file,
+                    "    $(i) ->[\"$(round(p, digits=2))\", thick] $(j);\n")
+                elseif l.conductor.name == "Daisy"
+                    write(file,
+                    "    $(i) ->[\"$(round(p, digits=2))\", very thick] $(j);\n")
+                elseif l.conductor.name == "Tulip"
+                    write(file,
+                    "    $(i) ->[\"$(round(p, digits=2))\", ultra thick] $(j);\n")
+                end
+                print(l.conductor.name)
             else 
                 i = l.edge.from_node.id ; j = l.edge.to_node.id
                 write(file,
@@ -108,4 +120,4 @@ function showgraph_tikz(network, time_step, x_scale, y_scale;
     end
 end
 
-
+"""Compute KPIs."""
