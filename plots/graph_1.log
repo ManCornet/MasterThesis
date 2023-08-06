@@ -1,4 +1,4 @@
-This is LuaHBTeX, Version 1.15.0 (TeX Live 2022)  (format=lualatex 2023.2.17)  4 AUG 2023 11:52
+This is LuaHBTeX, Version 1.15.0 (TeX Live 2022)  (format=lualatex 2023.2.17)  6 AUG 2023 12:44
  restricted system commands enabled.
 **graph_1.tex
 (./graph_1.tex
@@ -519,30 +519,30 @@ File: l3backend-luatex.def 2022-02-07 L3 backend support: PDF output (LuaTeX)
 \l__color_backend_stack_int=\count295
 \l__pdf_internal_box=\box64
 )
-No file graph_1.aux.
-
+(./graph_1.aux)
 \openout1 = graph_1.aux
-LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 6.
-LaTeX Font Info:    ... okay on input line 6.
-LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 6.
-LaTeX Font Info:    ... okay on input line 6.
-LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 6.
-LaTeX Font Info:    ... okay on input line 6.
-LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 6.
-LaTeX Font Info:    ... okay on input line 6.
-LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 6.
-LaTeX Font Info:    Trying to load font information for TS1+cmr on input line 6
+
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 8.
+LaTeX Font Info:    ... okay on input line 8.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 8.
+LaTeX Font Info:    ... okay on input line 8.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 8.
+LaTeX Font Info:    ... okay on input line 8.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 8.
+LaTeX Font Info:    ... okay on input line 8.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 8.
+LaTeX Font Info:    Trying to load font information for TS1+cmr on input line 8
 .
-(/usr/local/texlive/2022/texmf-dist/tex/latex/base/ts1cmr.fd
+ (/usr/local/texlive/2022/texmf-dist/tex/latex/base/ts1cmr.fd
 File: ts1cmr.fd 2019/12/16 v2.5j Standard LaTeX font definitions
 )
-LaTeX Font Info:    ... okay on input line 6.
-LaTeX Font Info:    Checking defaults for TU/lmr/m/n on input line 6.
-LaTeX Font Info:    ... okay on input line 6.
-LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 6.
-LaTeX Font Info:    ... okay on input line 6.
-LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 6.
-LaTeX Font Info:    ... okay on input line 6.
+LaTeX Font Info:    ... okay on input line 8.
+LaTeX Font Info:    Checking defaults for TU/lmr/m/n on input line 8.
+LaTeX Font Info:    ... okay on input line 8.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 8.
+LaTeX Font Info:    ... okay on input line 8.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 8.
+LaTeX Font Info:    ... okay on input line 8.
 
 (/usr/local/texlive/2022/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
 [Loading MPS to PDF converter (version 2006.09.02).]
@@ -588,23 +588,25 @@ e
 (./graph_1.aux))
 
 Here is how much of LuaTeX's memory you used:
- 15531 strings out of 477785
+ 15542 strings out of 477785
  125016,662416 words of node,token memory allocated
- 33540 words of node memory still in use:
-   419 hlist, 2 vlist, 2 rule, 46 math, 1993 glue, 4 kern, 168 glyph, 2534 attri
-bute, 51 glue_spec, 2534 attribute_list, 2 write, 1171 pdf_literal, 72 pdf_color
-stack nodes
-   avail lists: 1:12,2:30,3:2345,4:154,5:22,6:2,7:4434,8:3,9:850
- 35618 multiletter control sequences out of 65536+600000
- 28 fonts using 1600695 bytes
+ 41057 words of node memory still in use:
+   570 hlist, 25 vlist, 2 rule, 23 local_par, 134 math, 2296 glue, 4 kern, 111 p
+enalty, 324 glyph, 2870 attribute, 51 glue_spec, 2870 attribute_list, 2 write, 1
+156 pdf_literal, 160 pdf_colorstack nodes
+   avail lists: 1:11,2:31,3:2537,4:330,5:26,6:48,7:5528,8:6,9:1198,10:1
+ 35624 multiletter control sequences out of 65536+600000
+ 32 fonts using 1918687 bytes
  100i,11n,98p,407b,1350s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/local/texlive/2022/texmf-dist/fonts/opentype/public/lm/lmroman7-regular.ot
-f></usr/local/texlive/2022/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></
-usr/local/texlive/2022/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb>
-Output written on graph_1.pdf (1 page, 26309 bytes).
+f></usr/local/texlive/2022/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx5.pfb><
+/usr/local/texlive/2022/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi5.pfb></us
+r/local/texlive/2022/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></usr/lo
+cal/texlive/2022/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb>
+Output written on graph_1.pdf (1 page, 43122 bytes).
 
-PDF statistics: 26 PDF objects out of 1000 (max. 8388607)
- 17 compressed objects within 1 object stream
+PDF statistics: 34 PDF objects out of 1000 (max. 8388607)
+ 23 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 131072)
  16 words of extra memory for PDF output out of 10000 (max. 100000000)
 

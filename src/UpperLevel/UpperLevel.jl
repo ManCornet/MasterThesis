@@ -31,8 +31,7 @@ include("formulation/variables.jl")
 include("formulation/constraints.jl")
 include("formulation/objective.jl")
 include("build_model.jl")
-
-
+include("plot_results.jl")
 
 
 # -- Here I test the functionalities --

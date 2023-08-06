@@ -63,7 +63,7 @@ function parse_commandline(;as_symbols::Bool=false)
                                     dataset containing the load & PV profiles 
                     """
             arg_type = Int64
-            default = 60
+            default = 60 # 1h per default
         
         "--PP"
             help = "Load peak power"
