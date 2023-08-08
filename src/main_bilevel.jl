@@ -171,18 +171,18 @@ end
 verbose     = true #parsed_args["verbose"]
 
 # ------- Choice of the model -------
-bilevel     = false #parsed_args["bilevel"]
+bilevel     = true #parsed_args["bilevel"]
 storage     = false #parsed_args["storage"]
 
 # ------- Profiles parameters -------
 nb_days     = 2 #parsed_args["days"]
-delta_t     = 60*12 # parsed_args["delta_t"]
+delta_t     = 60 # parsed_args["delta_t"]
 peak_power  = 7.0 # parsed_args["PP"]
 EV          = false #parsed_args["EV"]
 EHP         = false #parsed_args["EHP"]
 
 # ------- Users parameters -------
-PV_pen        = 0.5     # parsed_args["PV_pen"]
+PV_pen        = 1.0     # parsed_args["PV_pen"]
 storage_pen   = 1.0     #parsed_args["Storage_pen"]
 storage_eff   = 0.98
 storage_cost  = 0   # k€/Mwh
@@ -255,6 +255,7 @@ PROFILE_PATHS = [SUMMER_LOAD_PATH, WINTER_LOAD_PATH]
 base_daily_profiles = Vector{Matrix{Float64}}()
 for path in PROFILE_PATHS 
     base_daily_profile, _ = build_daily_load_profiles(path, get_nb_loads(network))
+    println(base_daily_profile)
     push!(base_daily_profiles, base_daily_profile * 1e-3 / network.pu_basis.base_power)
 end
 

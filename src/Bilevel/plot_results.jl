@@ -88,9 +88,7 @@ function print_network_tikz(network, time_step, x_scale, y_scale;
 
         for l in network.lines
             if l.built
-                p_s = l.P_send[time_step]
-                p_r = l.P_rec[time_step]
-                if  p_s >= 0                   
+                if  l.P_send[time_step] >= 0                   
                     i = l.edge.from_node.id ; j = l.edge.to_node.id
                     p = l.P_send[time_step]
                 else 
@@ -202,7 +200,6 @@ function print_network_results(model; latex=false)
     return vcat([i[j] for i in kpis_header, j in 1:length(kpis_header[1])], kpis)
 end
 
-
 function print_cost_results(model; latex=false)
     network = model[:network_data]
     DSO_costs = model[:DSO_costs]
@@ -232,11 +229,18 @@ function print_cost_results(model; latex=false)
 
     # DSO revenues
     DSO_revenues = value(sum(model[:grid_costs])) * DSO_costs.amortization
+    # Other costs
     user_costs = value(sum(model[:user_costs]))
     PV_costs = value(sum(model[:PV_costs]))
     grid_costs = value(sum(model[:grid_costs]))
     energy_costs = value(sum(model[:energy_costs]))
     energy_revenues = value(sum(model[:energy_revenues]))
+    if model[:storage]
+        stor_costs = value(sum(model[:storage_costs]))
+        kpis_header = (["DSO fixed line", "DSO fixed sub", "DSO loss", "DSO future value", "DSO revenues", "User", "PV", "Storage", "Grid connection", "Energy imported", "Energy exported"],
+        ["kEUR", "kEUR", "kEUR", "kEUR", "kEUR", "kEUR/year", "kEUR/year", "kEUR/year", "kEUR/year", "kEUR/year", "kEUR/year"])
+        kpis = sig_round([DSO_fixed_line DSO_fixed_sub DSO_loss DSO_future_value DSO_revenues user_costs PV_costs stor_costs grid_costs energy_costs energy_revenues])
+    end
     kpis_header = (["DSO fixed line", "DSO fixed sub", "DSO loss", "DSO future value", "DSO revenues", "User", "PV", "Grid connection", "Energy imported", "Energy exported"],
         ["kEUR", "kEUR", "kEUR", "kEUR", "kEUR", "kEUR/year", "kEUR/year", "kEUR/year", "kEUR/year", "kEUR/year"])
     kpis = sig_round([DSO_fixed_line DSO_fixed_sub DSO_loss DSO_future_value DSO_revenues user_costs PV_costs grid_costs energy_costs energy_revenues])
@@ -249,38 +253,50 @@ function print_cost_results(model; latex=false)
     return vcat([i[j] for i in kpis_header, j in 1:length(kpis_header[1])], kpis)
 end
 
-# seems ok
-function print_case_results(model; latex=false)
-    DAYS_A_YEAR = 365
+
+# seems okay
+function print_grid_results(model; latex=true)
+    network = model[:network_data]
     DELTA_T = model[:delta_t]
     NB_PROFILES = model[:nb_sign_days]
-   
-    MULTIPLIER = DELTA_T/60 * DAYS_A_YEAR / NB_PROFILES
-    # PV penetration : p_pv max = peak PV 
-    PV_penetration = sum(value.(model[:p_pv_max]))
-    # PV energy
-    PV_energy = sum(value.(model[:p_pv])) * MULTIPLIER / PV_penetration
-
-    # PV potential
-    network = model[:network_data]
     Nu = get_nb_loads(network)
     Ns = get_nb_substations(network)
-    T  = model[:time_steps]
-    buses = network.buses 
-    PV_prod = [(isnothing(buses[Ns + i].PV_installation) ? zeros(Float64, T) : buses[Ns + i].PV_installation.profile.time_serie) for i in 1:Nu]
+    DAYS_A_YEAR = 365
+    MULTIPLIER = DELTA_T/60 * DAYS_A_YEAR / NB_PROFILES
+    BASE_POWER = network.pu_basis.base_power
 
-    PV_potential = sum(PV_prod[i][t] * value(model[:p_pv_max][i]) for i in 1:Nu, t in 1:T) * MULTIPLIER / PV_penetration
+    # Average grid capacity
+    grid_capacity = (value(sum(model[:s_grid_max])) * BASE_POWER) / Nu
 
-    # Energy exchanges with grid
-    energy_to_grid = value(sum(model[:p_exp])) * MULTIPLIER
-    energy_from_grid = value(sum(model[:p_imp])) * MULTIPLIER
+    # Energy exchanges
+    energy_from_grid = value(sum(model[:p_imp])) * MULTIPLIER * BASE_POWER
+    energy_to_grid = value(sum(model[:p_exp])) * MULTIPLIER * BASE_POWER
 
-    # Substations capa
-    sub_init_capa = [buses[i].S_rating for i in 1:Ns]
-    substation1_capacity = sub_init_capa[1]
-    substation2_capacity = sub_init_capa[2]
-    kpis_header = (["PV penetration", "PV production", "PV potential", "Energy bought from grid", "Energy sold to grid", "Substation1 capacity", "Substation2 capacity"], ["MVA", "MWh/MVA/year", "MWh/MVA/year", "MWh/year", "MWh/year", "MVA", "MVA"])
-    kpis = sig_round([PV_penetration PV_energy PV_potential energy_from_grid energy_to_grid substation1_capacity substation2_capacity])
+    # Substations
+    substation_string = ["Substation "*string(i)*" capacity" for i in 1:Ns]
+    buses = network.buses
+    substation_capacities = [buses[i].S_rating*BASE_POWER for i in 1:Ns]
+
+    # Computation of the losses
+    lines = network.lines
+    conductors = network.conductors
+    T = model[:time_steps]
+    L = get_nb_lines(network)
+    K = get_nb_conductors(network)
+
+    loss = sum(lines[l].length * conductors[k].r *
+    model[:I_sqr_k][t, l, k] for t in 1:T, l in 1:L, k in 1:K) * MULTIPLIER * BASE_POWER
+
+    # Total grid costs
+    User_costs = model[:User_costs]
+    grid_cost = (value(sum(model[:p_imp])) * User_costs.EI * MULTIPLIER + value(sum(model[:p_imp])) * User_costs.DSOEI * MULTIPLIER + value(sum(model[:s_grid_max])) * User_costs.GCC) * BASE_POWER
+
+    # Total production
+    grid_production = value(sum(model[:p_imp])) * MULTIPLIER
+    LCOE_grid = grid_cost / grid_production
+    kpis_header = ([["Grid capacity", "Energy bought from grid", "Energy sold to grid"];substation_string; ["loss", "LCOE grid"]],
+        [["average, MVA", "MWh/year", "MWh/year"];fill("MVA",1:Ns);["MWh/year", "kEUR/MWh"]])
+    kpis = reshape(sig_round([[grid_capacity, energy_from_grid, energy_to_grid];substation_capacities;[loss, LCOE_grid]]),1,:)
     if latex
         pretty_table(kpis, header=kpis_header, backend=Val(:latex))
     else
@@ -289,3 +305,94 @@ function print_case_results(model; latex=false)
     # returns the table as a Matrix
     return vcat([i[j] for i in kpis_header, j in 1:length(kpis_header[1])], kpis)
 end
+
+# seems okay: to verify !!
+function print_storage_results(model; latex=true)
+    network = model[:network_data]
+    Nu = get_nb_loads(network)
+
+    # storage capacity
+    storage_capacity = value(sum(model[:storage_capacity])) / Nu
+
+    # Avg storage state
+    avg_storage_state = mean(value.(model[:storage_state]))
+    kpis_header = (["Storage capacity", "Storage state"],
+        ["average, MWh", "average, [-]"])
+    kpis = sig_round([storage_capacity avg_storage_state])
+    if latex
+        pretty_table(kpis, header=kpis_header, backend=Val(:latex))
+    else
+        pretty_table(kpis, header=kpis_header)
+    end
+    # returns the table as a Matrix
+    return vcat([i[j] for i in kpis_header, j in 1:length(kpis_header[1])], kpis)
+end
+
+
+
+# NOT OKAY !!!!! TO WORK
+# function print_pv_results(p, model; latex=true)
+#     DAYS_A_YEAR = 365
+#     DELTA_T = model[:delta_t]
+#     NB_PROFILES = model[:nb_sign_days]
+#     MULTIPLIER = DELTA_T/60 * DAYS_A_YEAR / NB_PROFILES
+
+#     # PV penetration
+#     PV_penetration = sum(value.(model[:p_pv_max]))
+
+#     # PV energy
+#     PV_energy = sum(value.(model[:p_pv])) * MULTIPLIER / PV_penetration # percentage
+
+#     # PV potential
+#     network = model[:network_data]
+#     Nu = get_nb_loads(network)
+#     Ns = get_nb_substations(network)
+#     T  = model[:time_steps]
+#     buses = network.buses 
+#     PV_prod = [(isnothing(buses[Ns + i].PV_installation) ? 0.0 : buses[Ns + i].PV_installation.profile.time_serie[t]) for t in 1:T, i in 1:Nu]
+
+#     PV_potential = sum(PV_prod[t, i] * value(model[:p_pv_max][i]) for i in 1:Nu, t in 1:T) * MULTIPLIER / PV_penetration
+
+#     # Self-sufficiency
+#     P_consumed = [buses[i].load_profile.time_serie[t] * buses[Ns + i].cos_phi for t in 1:T, i in 1:Nu]
+
+#     # Self-suffiency and self-consumption ? => ASK BERTRAND
+#     avg_self_sufficiency = 0
+#     avg_self_consumption = 0
+
+#     mean(value.(model[:p_pv]) .- value.(model[:p_exp]) ./ P_consumed)
+
+#     for t in 1:T
+#         avg_self_sufficiency += (value(sum(model[:p_pv][t, :])) - value(sum(model[:p_exp][t, :])))/(sum(P_consumed[t, :]))/T
+
+#         if value(model[:p_pv][t, i]) != 0
+#             avg_self_consumption += (value(sum(model[:p_pv][t, :])) - value(sum(model[:p_exp][t, :])))/value(model[:p_pv][t, i])/T
+#         end
+#     end
+    
+#     index_non_zeros = PV_potential .!= 0
+#     production_ratio = mean(value.(model[:p_pv][p.NU, :])[index_non_zeros] ./ PV_potential[index_non_zeros])
+
+#     potential_array = PV_prod .* value.(model[:p_pv_max])
+#     index_non_zeros = potential_array .!= 0
+
+#     production_ratio = mean(value.(model[:p_pv])[index_non_zeros] ./ potential_array[index_non_zeros])
+
+#     # PV_costs 
+#     User_costs = model[:User_costs]
+#     pv_cost = value(sum(model[:s_conv_pv])) * User_costs.PV_conv/ User_costs.amortization_PVC + value(sum(model[:p_pv_max])) * User_costs.PV / User_costs.amortization_PV
+
+#     # Pv prod
+#     pv_production = MULTIPLIER * sum(value.(model[:p_pv]))
+#     LCOE_pv = pv_cost / pv_production
+#     kpis_header = (["PV penetration", "PV production", "PV potential", "Avg self sufficiency", "Avg self consumption", "production ratio", "LCOE pv"],
+#         ["MVA", "MWh/MVA/year", "MWh/MVA/year", "average, [-]", "average, [-]", "average, [-]", "kEUR/MWh"])
+#     kpis = sig_round([PV_penetration PV_energy PV_potential avg_self_sufficiency self_consumption production_ratio LCOE_pv])
+#     if latex
+#         pretty_table(kpis, header=kpis_header, backend=Val(:latex))
+#     else
+#         pretty_table(kpis, header=kpis_header)
+#     end
+#     # returns the table as a Matrix
+#     return vcat([i[j] for i in kpis_header, j in 1:length(kpis_header[1])], kpis)
+# end

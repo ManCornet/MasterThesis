@@ -165,7 +165,7 @@ function add_load_profiles!(network::Network, load_profiles::Matrix{Float64}; de
 
     @assert Nu == nb_profiles
     
-    for u in 1:Nu
+    for u in enumerate(1:Nu)
         p = Profile(load_profiles[:, u] ./ pu_basis.base_power, delta_t)
         network.buses[Ns + u].load_profile = p
     end
