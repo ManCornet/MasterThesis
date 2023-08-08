@@ -273,7 +273,6 @@ function _add_PowerBalanceConstraints!( model::JuMP.AbstractModel,
                                             for l in Omega_receiving[Ns + i], k in 1:K) -
                                             sum(Q_ij_k[t, l, k] for l in Omega_sending[Ns + i], k in 1:K)
                         
-                        # Maybe move this at another place in the code but temporary to test
                         end
                     )
 
@@ -617,7 +616,7 @@ function _add_PowerFlowConstraints!(model::JuMP.AbstractModel,
 end
 
 # ---------------------------------------------------------------------------- #
-#                               PV Operation constraints                       #
+#                               Lower Level constraints                        #
 # ---------------------------------------------------------------------------- #
 # I AM HERE : ERROR WITH PV_PROD
 function _add_LowerConstraints!(model::JuMP.AbstractModel; storage::Bool=false)::Nothing
@@ -684,10 +683,6 @@ function _add_LowerConstraints!(model::JuMP.AbstractModel; storage::Bool=false):
         [t=1:T, i=1:Nu], p_pv[t, i] <= PV_prod[i][t] * p_pv_max[i] # T
         [t=1:T, i=1:Nu], p_exp[t, i] <= p_pv[t, i]
     end)
-
-    
-    
-    
     return
 end
 
@@ -832,16 +827,14 @@ function _add_RadialityConstraints!(model::JuMP.AbstractModel,
         JuMP.@constraints(model, begin
             [l=1:L, w=(Ns+1):N], k_ij[l, w] <= Y[l]
             [l=1:L, w=(Ns+1):N], k_ij[l, w] >= -Y[l]
-        
         end)
 
     elseif isa(graph_type, Directed)
         Y_send = model[:Y_send]
         Y_rec = model[:Y_rec]
         JuMP.@constraints(model, begin
-            [l=1:L, w=(Ns+1):N], k_ij[l, w] <= (Y_send[l] + Y_rec[l])
-            [l=1:L, w=(Ns+1):N], k_ij[l, w] >= -(Y_send[l] + Y_rec[l])
-        
+            [l=1:L, w=(Ns+1):N], k_ij[l, w] <= Y_send[l]
+            [l=1:L, w=(Ns+1):N], k_ij[l, w] >= -Y_rec[l] 
         end)
     end
 

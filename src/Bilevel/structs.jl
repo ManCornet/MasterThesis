@@ -177,7 +177,7 @@ mutable struct User <: Bus
     storage::Union{Nothing, Storage} 
     cos_phi::Float64                # cos(phi)
 
-    function User(node::Node, V_limits::Union{Nothing, VLIM}, max_pv_capa::Float64) 
+    function User(node::Node, V_limits::Union{Nothing, VLIM}, max_pv_capa::Float64, cos_phi::Float64) 
         return new(node, V_limits, max_pv_capa, nothing, nothing, nothing, nothing, cos_phi) 
     end
 end

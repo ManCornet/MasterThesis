@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------------------- #
 #                               Bus variables                                  #
 # ---------------------------------------------------------------------------- #
-function _add_BusVariables!(model::JuMP.AbstractModel; bilevel::Bool=false, storage::Bool=false)::Nothing 
+function _add_BusVariables!(model::JuMP.AbstractModel)::Nothing 
 
     network_data = model[:network_data]
     T  = model[:time_steps]
@@ -10,8 +10,8 @@ function _add_BusVariables!(model::JuMP.AbstractModel; bilevel::Bool=false, stor
     Nu = get_nb_loads(network_data)
     buses = network_data.buses
 
-    upper = bilevel ? Upper(model) : model
-    lower = bilevel ? Lower(model) : model
+    upper = model[:bilevel] ? Upper(model) : model
+    lower = model[:bilevel] ? Lower(model) : model
 
     JuMP.@variables(upper,   
                     begin 
@@ -51,7 +51,7 @@ function _add_BusVariables!(model::JuMP.AbstractModel; bilevel::Bool=false, stor
         JuMP.set_upper_bound(p_pv_max[i], buses[Ns + i].max_pv_capa)
     end
     
-    if storage 
+    if model[:storage] 
         JuMP.@variables(lower,   
             begin 
             p_storage[1:T, 1:Nu]               # active power to storage device at time t, positive when the battery is charging
@@ -252,11 +252,11 @@ function _add_RadialityVariables!(model::JuMP.AbstractModel,topology_choice::Top
     network_data = model[:network_data]
     T = model[:time_steps]
     L = get_nb_lines(network_data)
-
+    N = get_nb_loads(network_data) + get_nb_substations(network_data)
     if isa(topology_choice, OneConfig)
-        JuMP.@variable(model, k_ij[1:L])
+        JuMP.@variable(model, k_ij[1:L, 1:N])
     elseif isa(topology_choice, ReconfigAllowed)
-        JuMP.@variable(model, k_ij[1:T, 1:L])
+        JuMP.@variable(model, k_ij[1:T, 1:L, 1:N])
     end
 
     return

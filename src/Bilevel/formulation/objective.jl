@@ -1,7 +1,7 @@
 
 function _set_Objective!(   model::JuMP.AbstractModel, 
                             c::CurrentConstraintsFormulation,
-                            v::VoltageConstraintsFormulation; bilevel::Bool=false, storage=false)::Nothing
+                            v::VoltageConstraintsFormulation)::Nothing
 
 
     DAYS_A_YEAR  = 365
@@ -37,8 +37,8 @@ function _set_Objective!(   model::JuMP.AbstractModel,
     grid_costs      = model[:grid_costs]
 
    
-    upper = bilevel ? Upper(model) : model
-    lower = bilevel ? Lower(model) : model
+    upper = model[:bilevel] ? Upper(model) : model
+    lower = model[:bilevel] ? Lower(model) : model
 
     violations = JuMP.@expression(upper, 0.0)
     
@@ -101,7 +101,7 @@ function _set_Objective!(   model::JuMP.AbstractModel,
     # User costs expression
     user_costs_exp = JuMP.@expression(lower, [i=1:Nu], energy_costs[i] - energy_revenues[i] + PV_costs[i] + grid_costs[i])
 
-    if storage 
+    if model[:storage] 
         # Fetching required data
         storage_capacity = model[:storage_capacity]
         storage_costs = model[:storage_costs]
@@ -123,7 +123,7 @@ function _set_Objective!(   model::JuMP.AbstractModel,
                     [i in 1:Nu], grid_costs[i] == MULTIPLIER * BASE_POWER * DELTA_T/60 * (s_grid_max[i] * GC_COST + sum((p_imp[t, i] * DSOEI_COST + p_exp[t, i] * DSOEE_COST) for t in 1:T))
                 end)
 
-    if bilevel
+    if model[:bilevel] 
         JuMP.@objective(upper, Min, DSO_fixed_costs/AMORTIZATION + DSO_loss_costs + DSO_op_limits)
         JuMP.@objective(lower, Min, sum(user_costs))
     else 

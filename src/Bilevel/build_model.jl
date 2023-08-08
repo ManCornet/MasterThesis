@@ -48,6 +48,9 @@ function build_model(   simulation::Simulation;
     model[:DSO_costs]        = simulation.DSO_costs 
     model[:User_costs]       = simulation.User_costs 
     model[:time_steps]       = simulation.nb_time_steps #ATTENTION PUT BACK TO NB TIME STEPS
+    model[:bilevel] = simulation.bilevel
+    model[:storage] = simulation.storage
+
     model[:delta_t]          = simulation.delta_t
     model[:nb_sign_days]     = simulation.nb_sign_days
 
@@ -58,7 +61,7 @@ function build_model(   simulation::Simulation;
     time_model = @elapsed begin
 
         # -- Add the variables of the model --
-        _add_BusVariables!(model; bilevel=simulation.bilevel,storage=simulation.storage)
+        _add_BusVariables!(model)
         _add_BranchVariables!(upper, formulation.powerflow)
         _add_CondChoiceVariables!(upper, formulation.topology_choice, formulation.graph_type)
         _add_VoltageOpConstraints!(upper, formulation.v_constraints)
@@ -80,8 +83,7 @@ function build_model(   simulation::Simulation;
         # -- Add the constraints of the lower model --
         _add_LowerConstraints!(lower)
 
-        _set_Objective!(model, formulation.i_constraints, formulation.v_constraints; 
-                        bilevel=simulation.bilevel, storage=simulation.storage) 
+        _set_Objective!(model, formulation.i_constraints, formulation.v_constraints) 
     
         #_add_RadialityVariables!(model, formulation.topology_choice, formulation.radiality)
         #_add_RadialityConstraints!( model, 
