@@ -24,6 +24,7 @@ function build_model(   simulation::Simulation;
     @info "Building model..."
     time_model = @elapsed begin
         # ====================== Set up the Gurobi solver =====================
+        
         model = JuMP.Model(Gurobi.Optimizer)
         JuMP.set_string_names_on_creation(model, set_names)
         #JuMP.set_optimizer_attribute(model, "mode", Mode)

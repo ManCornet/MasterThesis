@@ -148,6 +148,17 @@ mutable struct PV
 
 end
 
+mutable struct Storage 
+    efficiency::Float64 
+    capa::Union{Nothing, Float64}
+    state::Union{Nothing, Vector{Float64}}
+    P::Union{Nothing, Vector{Float64}} # in pu, always positive cause generation
+
+    function Storage(efficiency::Float64) 
+        return new(efficiency, nothing, nothing, nothing) 
+    end
+end
+
 #------------------------------------ 4. -------------------------------------#
 #            Structures representing the electrical buses of the network      #
 #-----------------------------------------------------------------------------#
@@ -163,10 +174,11 @@ mutable struct User <: Bus
     V_magn::Union{Nothing, Vector{Float64}}       #  in KV
     load_profile::Union{Nothing, Profile} 
     PV_installation::Union{Nothing, PV}   # 
+    storage::Union{Nothing, Storage} 
     cos_phi::Float64                # cos(phi)
 
     function User(node::Node, V_limits::Union{Nothing, VLIM}, max_pv_capa::Float64) 
-        return new(node, V_limits, max_pv_capa, nothing, nothing, nothing, 0.9) 
+        return new(node, V_limits, max_pv_capa, nothing, nothing, nothing, nothing, cos_phi) 
     end
 end
 
@@ -276,12 +288,16 @@ struct DSOCosts
     loss::Float64           # loss cost [€/kWh]
     amortization::Int64     # amortization period of DSO investements [years]
     interest_rate::Float64    # interest rate DSO
+    WEIGHT_I::Float64       # cost to violate 
+    WEIGHT_V::Float64
     money_basis::Float64    # money basis in k€
+    WEIGHT_OBJ::Float64
 end
 
 struct UserCosts
     PV::Float64             # PV capacity cost in [€/kWc]
     PV_conv::Float64        # PV converter cost in 
+    storage::Float64
     EI::Float64             # energy imported [€/kWh]
     EE::Float64             # energy exported [€/kWh]
     DSOEI::Float64          # DSO energy imported cost [€/kWh]
@@ -289,7 +305,9 @@ struct UserCosts
     GCC::Float64            # grid connection cost [€/kVA/year]
     amortization_PV::Int64  # amortization period of pv panels
     amortization_PVC::Int64 # amortization periof of pv converters
+    amortization_storage::Int64
     money_basis::Float64    # money basis in k€
+    WEIGHT_OBJ::Float64
 end
 
 
@@ -304,14 +322,19 @@ struct Simulation
     nb_sign_days::Int64 # number of significative days to simulate
     nb_time_steps::Int64
     delta_t::Float64
+    bilevel::Bool
+    storage::Bool 
+    formulation::Formulation
+   
 
-    function Simulation(network::Network,network_topology::NetworkTopology, DSO_costs::DSOCosts, User_costs::UserCosts, nb_sign_days::Int64)
+    function Simulation(network::Network, network_topology::NetworkTopology, DSO_costs::DSOCosts, User_costs::UserCosts, nb_sign_days::Int64, bilevel::Bool, storage::Bool,  
+        formulation::Formulation)
 
-        Ns = network.nb_substations
+        Ns            = network.nb_substations
         nb_time_steps = get_nb_time_steps(network.buses[Ns + 1].load_profile)
         delta_t       = network.buses[Ns + 1].load_profile.granularity
 
-        return new(network, network_topology, DSO_costs, User_costs, nb_sign_days, nb_time_steps, delta_t)
+        return new(network, network_topology, DSO_costs, User_costs, nb_sign_days, nb_time_steps, delta_t, bilevel, storage, formulation)
     end
 end
 

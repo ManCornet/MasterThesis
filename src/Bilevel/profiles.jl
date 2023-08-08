@@ -145,10 +145,8 @@ function build_daily_load_profiles( PROFILE_PATH::String,
     # ---- Aggregating profiles to change granularity ----
     lost_time_steps = 0
     if nb_agg_periods > 1 
-        println("hello")
         load_profiles, lost_time_steps = change_granularity(load_profiles; nb_agg_periods=nb_agg_periods)
     end
-    println("hello")
     return load_profiles, lost_time_steps
 end
 
@@ -215,7 +213,7 @@ end
 
 function print_PV_profiles( fig_name::String,
                             profiles::Matrix{Float64};
-                            delta_t::Integer,
+                            delta_t::Integer=5,
                             id_profiles)
 
     time = vec(1:size(profiles)[1]) * delta_t

@@ -65,7 +65,7 @@ end
         - Ns_init: number of initial susbtations 
         - Nu     :the number of user nodes
 """
-function get_buses_data(NETWORK_PATH::String, V_limits::VLIM, pu_basis::PU_BASIS, max_pv_capa::Float64)
+function get_buses_data(NETWORK_PATH::String, V_limits::VLIM, pu_basis::PU_BASIS, max_pv_capa::Float64, cos_phi::Float64)
     
     df_bus = DataFrames.DataFrame(XLSX.readtable(NETWORK_PATH, "bus"))
 
@@ -81,7 +81,7 @@ function get_buses_data(NETWORK_PATH::String, V_limits::VLIM, pu_basis::PU_BASIS
                             convert(Float64, df_bus.S_G_init_mva[i]) / pu_basis.base_power) 
                 for i in 1:Ns]
 
-    load_buses = [User(nodes[i], V_limits, max_pv_capa / pu_basis.base_power) for i in (Ns+1):N]
+    load_buses = [User(nodes[i], V_limits, max_pv_capa / pu_basis.base_power, cos_phi) for i in (Ns+1):N]
 
     return nodes, [sub_buses; load_buses], Ns, Ns_init, Nu
 end
@@ -128,7 +128,7 @@ function get_conductors_data(NETWORK_PATH::String, pu_basis::PU_BASIS, money_bas
     df_cond = DataFrames.DataFrame(XLSX.readtable(NETWORK_PATH, "conductor"))
 
     K = DataFrames.nrow(df_cond)    
-    K = 2 # ATTENTION CHANGER CA
+    #K = 2 # ATTENTION CHANGER CA
     conds = [Conductor( convert(String, df_cond.name[k]), 
                         convert(Float64, df_cond.r_ohm_per_km[k]) / pu_basis.base_impedance, 
                         convert(Float64, df_cond.x_ohm_per_km[k]) / pu_basis.base_impedance,
@@ -158,10 +158,11 @@ function get_network_data(  NETWORK_PATH::String;
                             voltage_limits::VLIM=(V_min=0.95, V_max=1.05),
                             max_pv_capa::Float64=0.4, 
                             pu_basis::PU_BASIS=define_pu_basis(),
-                            money_basis::Float64=1.0
+                            money_basis::Float64=1.0,
+                            cos_phi::Float64
                             )
     
-    nodes, buses, nb_sub, nb_init_sub, nb_loads = get_buses_data(NETWORK_PATH, voltage_limits, pu_basis, max_pv_capa)
+    nodes, buses, nb_sub, nb_init_sub, nb_loads = get_buses_data(NETWORK_PATH, voltage_limits, pu_basis, max_pv_capa, cos_phi)
     edges, lines, nb_lines = get_lines_data(NETWORK_PATH, nodes)
     conductors, nb_conductors = get_conductors_data(NETWORK_PATH, pu_basis, money_basis)
 
@@ -198,10 +199,24 @@ function add_PV_profiles!(  network::Network,
 
     @assert length(id_users) == nb_profiles
 
-    for (index, u) in enumerate(id_users)
-        p = Profile(PV_profiles[:, index], delta_t)
+    for u in id_users
+        p = Profile(PV_profiles[:, u], delta_t)
         network.buses[Ns + u].PV_installation = PV(p, PQ_diagram)
     end
+
+    return
+end
+
+function add_storage!(  network::Network,
+                        efficiency::Float64, 
+                        id_users)
+
+        Ns = get_nb_substations(network)
+
+        for u in id_users
+            network.buses[Ns + u].storage = Storage(efficiency)
+        end
+
     return
 end
 

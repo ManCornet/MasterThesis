@@ -11,25 +11,6 @@
 #   Main file
 #
 # =============================================================================
-#                                   Imports
-# =============================================================================
-# Activating the julia environement
-# Path: I must add in terminal julia --project -- src/main.jl --
-
-# include("./UpperLevel/UpperLevel.jl")
-# include("utils.jl")
-
-# using ArgParse, PrettyTables
-# using Plots
-# using .UpperLevel
-
-# include("structs.jl")
-# include("read_network_data.jl")
-# include("profiles.jl")
-
-# include("./UpperLevel/build_model.jl")
-
-# =============================================================================
 #                                   Functions
 # =============================================================================
 function parse_commandline(;as_symbols::Bool=false)
@@ -48,6 +29,11 @@ function parse_commandline(;as_symbols::Bool=false)
             help = """model = - bilevel if bilevel = true
                               - singlelevel if bilevel = false
                     """
+            arg_type = Bool
+            default = false
+
+        "--storage"
+            help = "If storage or not in the model"
             arg_type = Bool
             default = false
 
@@ -84,7 +70,27 @@ function parse_commandline(;as_symbols::Bool=false)
         "--PV_pen"
             help = "Pv penetration in [0, 1] is the % of users having PV)"
             arg_type = Float64
-            default = 0.0
+            default = 1.0
+
+        "--Storage_pen"
+            help = "Storage penetration in [0, 1] is the % of users having PV)"
+            arg_type = Float64
+            default = 1.0
+
+        "--Storage_eff"
+            help = "Storage efficiency in [0, 1]"
+            arg_type = Float64
+            default = 0.98
+
+        "--Storage_cost"
+            help = "Storage cost"
+            arg_type = Float64
+            default = 500.0
+
+        "--AMORT_STORAGE"
+            help = "Storage amortization"
+            arg_type = Int64
+            default = 15
         
         "--PV_CAPA"
             help = "Maximum PV capacity per load bus [MVA]"
@@ -166,6 +172,7 @@ verbose     = true #parsed_args["verbose"]
 
 # ------- Choice of the model -------
 bilevel     = false #parsed_args["bilevel"]
+storage     = false #parsed_args["storage"]
 
 # ------- Profiles parameters -------
 nb_days     = 2 #parsed_args["days"]
@@ -175,21 +182,29 @@ EV          = false #parsed_args["EV"]
 EHP         = false #parsed_args["EHP"]
 
 # ------- Users parameters -------
-PV_pen        = 0.0     # parsed_args["PV_pen"]
+PV_pen        = 0.5     # parsed_args["PV_pen"]
+storage_pen   = 1.0     #parsed_args["Storage_pen"]
+storage_eff   = 0.98
+storage_cost  = 0   # k€/Mwh
+amort_storage = 15      # parsed_args["AMORT_STORAGE"]
 PV_capa       = 0.4     # parsed_args["PV_CAPA"]
 PV_cost       = 500.0   # parsed_args["PVC"]
 PV_conv_cost  = 200.0   # parsed_args["PVCC"]
 amort_PV_conv = 10      # parsed_args["AMORT_PV_CONV"]
 amort_PV      = 25      # parsed_args["AMORT_PV"]
-EIC           = 0.3     # parsed_args["EIC"]
+EIC           = 0.3     # parsed_args["EIC"] #old 0.3
 EEC           = 0.1     # parsed_args["EEC"]
 DSOEC         = 0.1     # parsed_args["DSOEC"]
 GCC           = 80.0    # parsed_args["GCC"]
+cos_phi       = 0.95
 
 # ------- DSO parameters -------
 substation_cost   = 1e3  # parsed_args["SUB_COST"]
 amort_DSO         = 50   # parsed_args["AMORT_DSO"]
 interest_rate_DSO = 0.06 # parsed_args["IR_DSO"]
+money_basis = 1.0
+weight_I = weight_V = 1.0e-2
+weight_obj1 = weight_obj2 = 1.0
 
 # ================= Printing the parameters of the simulation =============
 # Idea do the tables for each type of parameters !!!
@@ -221,7 +236,7 @@ profiles_data_dir = joinpath(root_dir, "ManchesterData", "LCT_profiles")
 NETWORK_PATH = joinpath(network_data_dir, "model_2S2H.xlsx") 
 pu_basis = define_pu_basis()
 # -- Fetching the network data --
-network, network_topology = get_network_data(NETWORK_PATH; max_pv_capa=PV_capa, pu_basis=pu_basis)
+network, network_topology = get_network_data(NETWORK_PATH; max_pv_capa=PV_capa, pu_basis=pu_basis, cos_phi=cos_phi)
 #print_network_topology(network_topology)
 #save_struct(network_topology, "network_topology.json")
 #save_struct(network, "network_data.json")
@@ -249,7 +264,7 @@ base_load_profiles *= scaling_factor
 
 # -- Building the load profiles with desired characteristics --
 nb_agg_periods = process_time_steps(delta_t=delta_t, data_granularity=5)
-println(nb_agg_periods)
+
 scaling_EHP = [0.0, 1.0]
 scaling_EV  = [1.0, 1.0]
 
@@ -267,7 +282,6 @@ for (index, path) in enumerate(PROFILE_PATHS)
                                                 EHP_PATH=EHP_PATH,
                                                 scaling_EHP=scaling_EHP[index],
                                                 scaling_EV=scaling_EV[index])
-    println(typeof(daily_profile))
     push!(daily_profiles, daily_profile * 1e-3 / network.pu_basis.base_power)
 end
 
@@ -317,30 +331,48 @@ if PV_pen > 0
     PQ_diagram = (max_q = 0.3, slope=-1.0)
     add_PV_profiles!(network, PV_profiles, ids_profiles[1]; 
                     PQ_diagram = PQ_diagram, delta_t=delta_t)
+
+    println(ids_profiles[1])
+    # -- Add storage -- 
+    if storage 
+        seed = nothing
+     
+        nb_storage_units = floor(Int, storage_pen * nb_PV_profiles)
+        if !isnothing(seed)
+            Random.seed!(seed)
+            id_storage = Random.rand(ids_profiles[1], nb_storage_units)
+        else 
+            id_storage = ids_profiles[1][1:nb_storage_units]
+        end
+
+        add_storage!(network, storage_eff, id_storage)
+    end
 end
+# # =========================== Costs definition  ===========================
 
-# =========================== Costs definition  ===========================
-money_basis = 1.0
-weight_I = weight_V = 1.0e-2
+formulation = Bilevel.Formulation(  powerflow = Bilevel.BFM(),
+                            topology_choice = Bilevel.OneConfig(),
+                            graph_type = Bilevel.Undirected(),
+                            radiality = Bilevel.SingleCommodityFlow(),
+                            convexity = Bilevel.Convex(),
+                            v_constraints = Bilevel.StrongVoltages(),
+                            i_constraints = Bilevel.StrongCurrents())
 
-DSO_costs  = UpperLevel.DSOCosts(substation_cost, 0.7 * EIC, amort_DSO, interest_rate_DSO, weight_I, weight_V, money_basis)
-User_costs = UpperLevel.UserCosts(PV_cost, PV_conv_cost, EIC, EEC, DSOEC, DSOEC, GCC, amort_PV, amort_PV_conv, money_basis)
 
-# =========================== Model  ===========================
-# -- Running the model -- 
+
+DSO_costs  = DSOCosts(substation_cost, 0.7 * EIC, amort_DSO, interest_rate_DSO, weight_I, weight_V, money_basis, weight_obj1)
+User_costs = UserCosts(PV_cost, PV_conv_cost, storage_cost, EIC, EEC, DSOEC, DSOEC, GCC, amort_PV, amort_PV_conv, amort_storage, money_basis, weight_obj2)
+
+# # =========================== Model  ===========================
+# # -- Running the model -- 
 nb_sign_days = length(PROFILE_PATHS)
-simulation  = UpperLevel.Simulation(network, network_topology, DSO_costs, User_costs, nb_sign_days, bilevel)
-formulation = UpperLevel.Formulation(  powerflow = UpperLevel.BFM(),
-                            production = UpperLevel.NoDG(),
-                            topology_choice = UpperLevel.OneConfig(),
-                            graph_type = UpperLevel.Undirected(),
-                            radiality = UpperLevel.SingleCommodityFlow(),
-                            convexity = UpperLevel.Convex(),
-                            v_constraints = UpperLevel.StrongVoltages(),
-                            i_constraints = UpperLevel.StrongCurrents())
+simulation  = Bilevel.Simulation(network, network_topology, DSO_costs, User_costs, nb_sign_days, bilevel, storage, formulation)
 
-upper_model = UpperLevel.build_model(simulation; formulation=formulation, set_names=true)
-#objective, time = UpperLevel.solve_model(upper_model, formulation.powerflow)
+# model = Bilevel.build_model(simulation; set_names=true)
+
+
+# model = Bilevel.build_model(simulation; formulation=formulation, set_names=true)
+#objective, time = Bilevel.solve_model(model, formulation.powerflow)
 
 #println(objective)
 #println(var_values)

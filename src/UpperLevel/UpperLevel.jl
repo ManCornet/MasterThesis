@@ -10,6 +10,7 @@ using Plots
 using Graphs, GraphRecipes
 using PrettyTables, Latexify
 
+export DSOCosts, UserCosts, Simulation, Formulation, build_model 
 export get_nb_loads, get_nb_substations, get_nb_conductors
 export get_nb_buses, get_nb_lines, get_nb_nodes, get_nb_time_steps
 export get_network_data, define_pu_basis
