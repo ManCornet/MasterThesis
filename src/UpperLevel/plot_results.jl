@@ -1,5 +1,21 @@
-"""Draws a graph using TikZ."""
-# Put reshape = true for Nahman Peric graph
+#-----------------------------------------------------------------------------
+#
+#                           - TFE : Bilevel DNEP - 
+#                             University of Liege
+#
+#-----------------------------------------------------------------------------
+# Created By  : Manon Cornet
+# Created Date: Saturday May 20 2023
+#
+# plot_results:
+#   plot results
+#
+# =============================================================================
+#                                   Functions
+# =============================================================================
+# -----------------------------------------------------------------------------
+#                               PRINT NETWORK IN TIKZ 
+# -----------------------------------------------------------------------------
 function print_network_tikz(network, time_step, x_scale, y_scale;
                         dir=pwd(), filename="graph", display=true, reshape=false)
     
@@ -124,6 +140,199 @@ function print_network_tikz(network, time_step, x_scale, y_scale;
     if display
         run(Cmd(`lualatex $filename.tex`, dir="$dir"))
         run(Cmd(`open $filename.pdf`, dir="$dir"))
+    end
+end
+
+# -----------------------------------------------------------------------------
+#                               PLOT NETWORK RESULTS 
+# -----------------------------------------------------------------------------
+
+# -- FUNCTION THAT PRINTS THE NETWORK --
+function print_network(
+    p, Alpha, P_ij, I_sqr_k, p_pv, P_sub, P_CONSUMPTION)
+
+    chosen_lines = sum(Alpha, dims=2)
+    edge_label_dict = Dict{Tuple{Int64,Int64},Float64}()
+
+    # Find values of line powers
+
+    line_power = [(P_ij[l] >= 0) ? P_ij[l] : abs(P_ij[l] - sum(p.R[l, k] * I_sqr_k[l] for k in p.K)) for l in p.L]
+
+    # Creating the graph
+    edge_width = Dict()
+    g = SimpleDiGraph(p.N_SIZE)
+    for l in p.L
+        if P_ij[l] < 0
+            add_edge!(g, p.LINE_ENDS[l][2], p.LINE_ENDS[l][1])
+            key = (p.LINE_ENDS[l][2], p.LINE_ENDS[l][1])
+        else
+            add_edge!(g, p.LINE_ENDS[l][1], p.LINE_ENDS[l][2])
+            key = p.LINE_ENDS[l]
+        end
+        if isapprox(chosen_lines[l], 1; rtol=1e-4) # TO BE MODIFIED
+            edge_label_dict[key] = abs(round(line_power[l]; digits=4) .* p.BASE_POWER)
+        end
+        edge_width[key] = (isapprox(chosen_lines[l], 1; rtol=1e-4) ? 1 : 0.1)
+    end
+
+    # -- SHAPES OF THE NODES OF THE NETWORK --
+    house_nodeshape(x_i, y_i, s) = [(x_i + 0.7s * dx, y_i + 0.7s * dy) for (dx, dy) in [(1, 1), (0, 1.6), (-1, 1), (-1, -1), (1, -1), (1, 1)]]
+    subs_nodeshape(x_i, y_i, s) = [(x_i + 1.2s * dx, y_i + 1.2s * dy) for (dx, dy) in [(1, 1), (-1, 1), (-1, -1), (1, -1), (1, 1)]]
+
+
+    # colors = [colorant"lightseagreen", colorant"orange"]
+    colors = ["#689BAA", "#C2C5DB"]
+    house_labels = ["+$(round(value.(p_pv)[n]*p.BASE_POWER, digits=3)) \n\n -$(round(P_CONSUMPTION[n]*p.BASE_POWER, digits=3))" for n in p.NU]
+    subs_labels = ["+$(round(value.(P_sub)[n]*p.BASE_POWER, digits=3))" for n in p.NS]
+    node_labels = [subs_labels; house_labels]
+    node_shapes = [[subs_nodeshape for _ in p.NS]; [house_nodeshape for _ in p.NU]]
+
+    # See components.jl from Plots.jl to have all the arguments
+    graph = graphplot(adjacency_matrix(g),
+        x=[[p.NODES_LOCATION[1][n] + 0.5 for n in p.NS]
+            [p.NODES_LOCATION[1][n] for n in p.NU]],             # x-coordinate of the nodes
+        y=p.NODES_LOCATION[2],                                # y-coordinate of the nodes
+        nodesize=0.1,
+        nodestrokewidth=0,                                        # coutour line width of the node
+        edgestyle=:solid,
+        nodealpha=1,                                        # transparency of node color
+        names=node_labels,                              # node label
+        nodeshape=node_shapes,                              # :circle, :ellipse, :hexagon
+        nodecolor=colors[[[1 for _ in p.NS]; [2 for _ in p.NU]]],
+        curves=false,                                    # if an edge is curved or not
+        #arrow=Plots.arrow(:closed, 0.8, 0.8),                 # other choices : :open, :closed
+        ew=edge_width,
+        shorten=0.05,
+        edgelabel=edge_label_dict,
+        edgelabeloffset=3,
+        axis_buffer=0.1,
+        fontsize=10,
+        size=(1000, 2000)
+    )
+    return graph
+end
+
+function if_small(x)
+    for (i, a) in enumerate(x)
+        if abs(a) < 1e-6
+            x[i] = 0
+        end
+    end
+    return x #round.(x, digits=6)
+end
+
+function plot_results(p, model)
+    # PV understanding
+    for u in p.NU
+        plt = Plots.plot()
+        plot!(p.T, p.P_CONSUMPTION[u, :], label="P_conso", title="Bus $(u)")
+        #plot!(plt, T, Q_CONSUMPTION[u, :], label="Q_conso")
+        plot!(plt, p.T, [value.(model[:p_pv_max])[u] for t in p.T], label="pv max")
+        plot!(plt, p.T, value.(model[:p_pv])[u, :], label="p_pv")
+        plot!(plt, p.T, p.PV_PRODUCTION[u, :] * value.(model[:p_pv_max])[u], label="max PV prod")
+        #plot!(plt, T, value.(model[:q_pv])[u, :], label="q_pv")
+        plot!(plt, p.T, value.(model[:p_exp])[u, :], label="p_exp")
+        display(plt)
+    end
+
+
+    #using PyPlot
+    for t in p.T
+        pyplot()
+        network_plot = print_network(
+            p,
+            value.(model[:Alpha]),
+            value.(model[:P_ij])[:, t],
+            value.(model[:I_sqr_k])[:, :, t],
+            value.(model[:p_pv])[:, t],
+            value.(model[:P_sub])[:, t],
+            p.P_CONSUMPTION[:, t]
+        )
+        display(network_plot)
+        #PyPlot.savefig("network_state_time_step_$(t).png")
+    end
+
+    # # log record
+    # dict_input = Dict(
+    #     "S_CONSUMPTION" => Containers.DenseAxisArray(p.S_CONSUMPTION, p.N, p.T),
+    #     "P_CONSUMPTION" => Containers.DenseAxisArray(p.P_CONSUMPTION, p.N, p.T),
+    #     "Q_CONSUMPTION" => Containers.DenseAxisArray(p.Q_CONSUMPTION, p.N, p.T),
+    #     "PV_PRODUCTION" => Containers.DenseAxisArray(p.PV_PRODUCTION, p.N, p.T),
+    #     "MAX_CURRENT" => Containers.DenseAxisArray(p.MAX_CURRENT, p.L, p.K),
+    #     "MAX_VOLTAGE" => Containers.DenseAxisArray([p.MAX_VOLTAGE], 1:1),
+    # )
+    # dict_output = Dict(String(k) => value.(v) for (k, v) in object_dictionary(model))
+    # data = merge(dict_output, dict_input)
+
+    # xlsx_output(data)
+
+    # Plot currents
+    for l in p.L
+        plt = Plots.plot()
+        chosen_cond_index = findfirst(i -> isapprox(i, 1; rtol=1e-4), value.(model[:Alpha])[l, :])
+        if isnothing(chosen_cond_index)
+            continue
+        end
+        plot!(p.T, sqrt.(if_small(value.(model[:I_sqr])[l, :])) * p.BASE_CURRENT, label="I [kA]", title="Line $(l)")
+        plot!(plt, p.T, p.MAX_CURRENT[l, chosen_cond_index] * p.BASE_CURRENT * ones(p.T_SIZE), label="MAX_CURRENT [kA]")
+        display(plt)
+    end
+
+    # Display the power for each conductor
+    for l in p.L
+        plt = Plots.plot()
+        chosen_cond_index = findfirst(i -> isapprox(i, 1; rtol=1e-4), value.(model[:Alpha])[l, :])
+        title = isnothing(chosen_cond_index) ? "Line $l is not built" : "Line $l is built with conductor $chosen_cond_index"
+        for k in p.K
+            plot!(plt, p.T, sqrt.(if_small(value.(model[:I_sqr_k])[l, k, :])) * p.BASE_CURRENT, label="I_ij_$k [kA]", title=title)
+        end
+        plot!(plt, p.T, sum(sqrt.(if_small(value.(model[:I_sqr_k])[l, :, :])) * p.BASE_CURRENT, dims=1)', label="I_ij [kA]")
+        display(plt)
+    end
+
+
+    # Check voltage limits
+    for i in p.N
+        plt = Plots.plot()
+        plot!(p.T, sqrt.(value.(model[:V_sqr])[i, :]), label="V [p.u.]", title="Bus $(i)")
+        plot!(plt, p.T, p.MIN_VOLTAGE * ones(p.T_SIZE), label="MIN_VOLTAGE [p.u.]")
+        plot!(plt, p.T, p.MAX_VOLTAGE * ones(p.T_SIZE), label="MAX_VOLTAGE [p.u.]")
+        display(plt)
+    end
+
+    for i in p.NS
+        plt = Plots.plot()
+        plot!(p.T, value.(model[:P_sub])[i, :], label="P_sub", title="Bus $(i)")
+        display(plt)
+    end
+
+    # Compute total losses per time step: 
+    total_losses = [sum(p.R[:, :] .* value.(model[:I_sqr_k])[:, :, t] .* p.BASE_POWER) for t in p.T]
+    # Check P_sub, Q_sub
+    plt = Plots.plot()
+    plot!(p.T, [sum(value.(model[:P_sub])[:, t]) for t in p.T] * p.BASE_POWER, label="P_sub [MW]")
+    plot!(plt, p.T, [sum(p.P_CONSUMPTION[:, t]) * p.BASE_POWER for t in p.T], label="Total P_CONSUMPTION [MW]")
+    plot!(plt, p.T, [sum(value.(model[:p_pv])[:, t]) * p.BASE_POWER for t in p.T], label="Total p_pv [MW]")
+    plot!(plt, p.T, total_losses, label="Total Joule Losses [MW]")
+    plot!(plt, p.T, [sum(value.(model[:p_pv])[:, t]) * p.BASE_POWER for t in p.T] .+ [sum(value.(model[:P_sub])[:, t]) for t in p.T] * p.BASE_POWER .- total_losses, label="p_pv + P_sub - losses[MW]")
+    display(plt)
+end
+
+function plot_storage(p, model)
+    # Plot storage power transfers
+    for i in p.NU
+        plt = Plots.plot(legend=:bottomleft)
+        plot!(p.T, value.(model[:p_storage])[i, :], label="storage power [MW]", title="Bus $(i)")
+        plot!(p.T, value.(model[:storage_state])[i, :], label="storage state [MWh]")
+        hline!([value(model[:storage_capacity][i])], label="storage capacity [MWh]")
+        summer_check = round.([value(model[:storage_state][i, 1]) value(model[:storage_state][i, 24])+value(model[:p_storage][i, 1])* p.STORAGE_EFF], sigdigits=2)
+        winter_check = round.([value(model[:storage_state][i, 25]) value(model[:storage_state][i, 48])+value(model[:p_storage][i, 25])* p.STORAGE_EFF], sigdigits=2)
+        annotate!(12, 0.9 * value(model[:storage_capacity][i]), "$(summer_check[1]) ?= $(summer_check[2])")
+        annotate!(36, 0.9 * value(model[:storage_capacity][i]), "$(winter_check[1]) ?= $(winter_check[2])")
+        # ramping_max : fraction of the battery (dis)charged on 1 hour
+        ramping_max=round(maximum(abs.(diff([value.(model[:storage_state][i, 1:24]) value.(model[:storage_state][i, 25:48])], dims=1))), sigdigits=2)
+        annotate!(24, 0.7 * value(model[:storage_capacity][i]), "Ramping max $(ramping_max)/h")
+        display(plt)
     end
 end
 

@@ -9,6 +9,8 @@ using Logging, Printf
 using Plots
 using Graphs, GraphRecipes
 using PrettyTables, Latexify, LaTeXStrings
+using PGFPlotsX
+
 
 export DSOCosts, UserCosts, Simulation, Formulation, build_model 
 export get_nb_loads, get_nb_substations, get_nb_conductors

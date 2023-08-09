@@ -1,5 +1,102 @@
+# =============================================================================
+#                                   Functions
+# =============================================================================
+# -----------------------------------------------------------------------------
+#                               PRINT NETWORK IN TIKZ 
+# -----------------------------------------------------------------------------
 """Draws a graph using TikZ."""
-# Put reshape = true for Nahman Peric graph
+
+function print_initial_network(network, x_scale, y_scale;
+                   dir=pwd(),
+                   filename="graph",
+                   display=true, reshape=false)
+
+    # Let's insert some boilerplate styling
+    # and necessary preamble/postamble
+    preamble = """\\documentclass{standalone}
+    \\usepackage{tikz}
+    \\usepackage{amsmath}
+    \\usepackage{xcolor}
+    \\definecolor{Ulg_blue}{RGB}{9, 111, 123}
+    \\usetikzlibrary{graphs, quotes, arrows.meta, positioning}
+
+    \\begin{document}
+    \\Large
+    \\begin{tikzpicture}[
+        every label/.style = {align=center, font=\\normalsize, inner sep=2pt},
+        every edge quotes/.style = {font=\\normalsize, text=black, fill=white, inner sep=2pt}
+        ]
+    \\graph [no placement]
+    {\n"""
+
+    
+    postamble = """};
+    \\end{tikzpicture}
+    \\end{document}"""
+ 
+    #style_sub = "rectangle, draw=Ulg_blue, fill=white, minimum size=1.5em, inner sep=1pt"
+    style_sub = "rectangle, draw, fill=white, minimum size=1.6em, inner sep=1pt"
+    style_load = "circle, draw, fill=white, minimum size=2em, inner sep=1pt"
+
+    file_path = joinpath(dir ,"$filename.tex")
+
+    touch(file_path)
+
+    open(file_path, "w") do file
+        write(file, preamble)
+   
+        for b in network.buses
+            node = b.node
+            n = node.id
+            x_coord = node.coord.x
+            y_coord = node.coord.y
+            if reshape
+                if n in [1, 2]
+                    x_coord += 0.5
+                elseif n == 16
+                    y_coord += 0.1
+                elseif n == 20
+                    y_coord -=  0.1
+                elseif n in [3, 9]
+                    if n == 9 
+                        x_coord += 0.5  
+                    end
+                    y_coord -= 1.8
+                elseif n in [4, 5]
+                    if n == 4
+                        x_coord += 0.8
+                    else 
+                        x_coord += 0.5
+                    end
+                    y_coord += 0.4
+                end
+            end
+            x = x_scale * x_coord
+            y = y_scale * y_coord
+            ns = get_nb_substations(network)
+            if n <= ns
+                write(file,
+                "    $n [x=$(x)cm, y=$(y)cm, as={\$\\mathcal{S}_{$n}\$}, $(style_sub)];\n")
+            else 
+                write(file,
+                "    $n [x=$(x)cm, y=$(y)cm, as={\$\\mathcal{U}_{$(n-ns)}\$}, $(style_load)];\n")
+            end
+        end
+
+        for l in network.lines
+            i = l.edge.from_node.id ; j = l.edge.to_node.id
+            write(file,
+            "    $(i) --[gray, dashed] $(j);\n")
+        end  
+        write(file, postamble)
+    end
+
+    if display
+        run(Cmd(`lualatex $filename.tex`, dir="$dir"))
+        run(Cmd(`open $filename.pdf`, dir="$dir"))
+    end
+end
+
 function print_network_tikz(network, time_step, x_scale, y_scale;
                         dir=pwd(), filename="graph", display=true, reshape=false)
     
@@ -98,10 +195,10 @@ function print_network_tikz(network, time_step, x_scale, y_scale;
               
                 if l.conductor.name == "Poppy"
                     write(file,
-                    "    $(i) ->[\"$(round(p_s, digits=2))\"] $(j);\n")
+                    "    $(i) ->[\"$(round(p, digits=2))\"] $(j);\n")
                 elseif l.conductor.name == "Oxlip"
                     write(file,
-                    "    $(i) ->[\"$(round(p_s, digits=2))\", thick] $(j);\n")
+                    "    $(i) ->[\"$(round(p, digits=2))\", thick] $(j);\n")
                 elseif l.conductor.name == "Daisy"
                     write(file,
                     "    $(i) ->[\"$(round(p, digits=2))\", very thick] $(j);\n")
@@ -125,7 +222,132 @@ function print_network_tikz(network, time_step, x_scale, y_scale;
     end
 end
 
-"""Compute KPIs."""
+# -----------------------------------------------------------------------------
+#                               PRINT PLOTS
+# -----------------------------------------------------------------------------
+
+function if_small(x)
+    for (i, a) in enumerate(x)
+        if abs(a) < 1e-6
+            x[i] = 0
+        end
+    end
+    return x #round.(x, digits=6)
+end
+
+function plot_results(model::JuMP.AbstractModel; thesis_dir=pwd(), pgfplot=true)
+
+    colors = ["#096F7B", "#FF8D3E","#842600"]
+
+    network = model[:network_data]
+    buses = network.buses
+    T = model[:time_steps]
+    Ns = get_nb_substations(network)
+    Nu = get_nb_loads(network)
+    BASE_POWER = network.pu_basis.base_power
+
+    P_consumed = [buses[Ns + i].load_profile.time_serie[t] * buses[Ns+i].cos_phi * BASE_POWER  for t in 1:T, i in 1:Nu] 
+    PV_prod = [buses[Ns + i].PV_installation.profile.time_serie[t] * BASE_POWER  for t in 1:T, i in 1:Nu]
+
+    for u in 1:Nu
+        filename = "user@bus$(Ns+u)"
+        pgfplot && Plots.pgfplotsx()
+        fig = Plots.plot(title="Bus $(u)", ylabel="Power [MW]", tex_output_standalone = false, legend = :topleft)
+
+        plot!(fig, 1:T, P_consumed[:, u], label="P_cons", color=colors[i])
+        plot!(fig, 1:T, [value.(model[:p_pv_max])[u] for t in 1:T], label="P_pv_max")
+        plot!(fig, 1:T, value.(model[:p_pv])[:, u], label="P_pv")
+        plot!(fig, 1:T, PV_prod[:, u] * value.(model[:p_pv_max])[u], label="PV_prod max")
+        plot!(fig, 1:T, value.(model[:p_exp])[:, u], label="P_exp")
+
+        pgfplot && Plots.savefig(fig, joinpath(thesis_dir, "$filename.tikz"))
+        Plots.savefig(fig, joinpath(thesis_dir, "$filename.pdf"))
+    end
+
+
+#     # print network
+#     for t in 1:T
+#         Bilevel.print_network_tikz(model[:network_data], t, 4.5, 4.5; dir=thesis_dir, filename="network@timestep_$t")
+#     end
+ 
+
+#     # Plot currents
+#     for l in 1:L
+#         filename = "current@line$(l)"
+#         pgfplot && Plots.pgfplotsx()
+#         fig = Plots.plot(title="Line $(l)", ylabel="Power [MW]", tex_output_standalone = false, legend = :topleft)
+
+#         chosen_cond_index = findfirst(i -> isapprox(i, 1; rtol=1e-4), value.(model[:Alpha])[l, :])
+#         if isnothing(chosen_cond_index)
+#             continue
+#         end
+#         plot!(p.T, sqrt.(if_small(value.(model[:I_sqr])[l, :])) * p.BASE_CURRENT, label="I [kA]", title="Line $(l)")
+#         plot!(plt, p.T, p.MAX_CURRENT[l, chosen_cond_index] * p.BASE_CURRENT * ones(p.T_SIZE), label="MAX_CURRENT [kA]")
+#         display(plt)
+#     end
+
+#     # Display the power for each conductor
+#     for l in p.L
+#         plt = Plots.plot()
+#         chosen_cond_index = findfirst(i -> isapprox(i, 1; rtol=1e-4), value.(model[:Alpha])[l, :])
+#         title = isnothing(chosen_cond_index) ? "Line $l is not built" : "Line $l is built with conductor $chosen_cond_index"
+#         for k in p.K
+#             plot!(plt, p.T, sqrt.(if_small(value.(model[:I_sqr_k])[l, k, :])) * p.BASE_CURRENT, label="I_ij_$k [kA]", title=title)
+#         end
+#         plot!(plt, p.T, sum(sqrt.(if_small(value.(model[:I_sqr_k])[l, :, :])) * p.BASE_CURRENT, dims=1)', label="I_ij [kA]")
+#         display(plt)
+#     end
+
+
+#     # Check voltage limits
+#     for i in p.N
+#         plt = Plots.plot()
+#         plot!(p.T, sqrt.(value.(model[:V_sqr])[i, :]), label="V [p.u.]", title="Bus $(i)")
+#         plot!(plt, p.T, p.MIN_VOLTAGE * ones(p.T_SIZE), label="MIN_VOLTAGE [p.u.]")
+#         plot!(plt, p.T, p.MAX_VOLTAGE * ones(p.T_SIZE), label="MAX_VOLTAGE [p.u.]")
+#         display(plt)
+#     end
+
+#     for i in p.NS
+#         plt = Plots.plot()
+#         plot!(p.T, value.(model[:P_sub])[i, :], label="P_sub", title="Bus $(i)")
+#         display(plt)
+#     end
+
+#     # Compute total losses per time step: 
+#     total_losses = [sum(p.R[:, :] .* value.(model[:I_sqr_k])[:, :, t] .* p.BASE_POWER) for t in p.T]
+#     # Check P_sub, Q_sub
+#     plt = Plots.plot()
+#     plot!(p.T, [sum(value.(model[:P_sub])[:, t]) for t in p.T] * p.BASE_POWER, label="P_sub [MW]")
+#     plot!(plt, p.T, [sum(p.P_CONSUMPTION[:, t]) * p.BASE_POWER for t in p.T], label="Total P_CONSUMPTION [MW]")
+#     plot!(plt, p.T, [sum(value.(model[:p_pv])[:, t]) * p.BASE_POWER for t in p.T], label="Total p_pv [MW]")
+#     plot!(plt, p.T, total_losses, label="Total Joule Losses [MW]")
+#     plot!(plt, p.T, [sum(value.(model[:p_pv])[:, t]) * p.BASE_POWER for t in p.T] .+ [sum(value.(model[:P_sub])[:, t]) for t in p.T] * p.BASE_POWER .- total_losses, label="p_pv + P_sub - losses[MW]")
+#     display(plt)
+# end
+
+# function plot_storage(p, model)
+#     # Plot storage power transfers
+#     for i in p.NU
+#         plt = Plots.plot(legend=:bottomleft)
+#         plot!(p.T, value.(model[:p_storage])[i, :], label="storage power [MW]", title="Bus $(i)")
+#         plot!(p.T, value.(model[:storage_state])[i, :], label="storage state [MWh]")
+#         hline!([value(model[:storage_capacity][i])], label="storage capacity [MWh]")
+#         summer_check = round.([value(model[:storage_state][i, 1]) value(model[:storage_state][i, 24])+value(model[:p_storage][i, 1])* p.STORAGE_EFF], sigdigits=2)
+#         winter_check = round.([value(model[:storage_state][i, 25]) value(model[:storage_state][i, 48])+value(model[:p_storage][i, 25])* p.STORAGE_EFF], sigdigits=2)
+#         annotate!(12, 0.9 * value(model[:storage_capacity][i]), "$(summer_check[1]) ?= $(summer_check[2])")
+#         annotate!(36, 0.9 * value(model[:storage_capacity][i]), "$(winter_check[1]) ?= $(winter_check[2])")
+#         # ramping_max : fraction of the battery (dis)charged on 1 hour
+#         ramping_max=round(maximum(abs.(diff([value.(model[:storage_state][i, 1:24]) value.(model[:storage_state][i, 25:48])], dims=1))), sigdigits=2)
+#         annotate!(24, 0.7 * value(model[:storage_capacity][i]), "Ramping max $(ramping_max)/h")
+#         display(plt)
+#     end
+end
+
+
+# -----------------------------------------------------------------------------
+#                                   KPIs
+# -----------------------------------------------------------------------------
 
 function sig_round(x)
     for (i, a) in enumerate(x)
@@ -139,33 +361,103 @@ function sig_round(x)
     return x
 end
 
-# This one seems okay: but check with results of Geoffrey
+# -- PRINT CASE DESCRIPTION FUNCTION --
+#
 function print_case_description(model::JuMP.AbstractModel)
-    network = model[:network_data]
-    delta_t = model[:delta_t]
-    nb_sign_days = model[:nb_sign_days]
-    nb_time_steps = model[:time_steps]  
-    bilevel = model[:bilevel]
-    N = get_nb_buses(network)
-    Ns = get_nb_substations(network)
-    buses = network.buses
-    energy_consumed = 0
-    for i in Ns+1:N
-        P_cons = sum(buses[i].load_profile.time_serie .* buses[i].cos_phi)
-        energy_consumed += P_cons * delta_t * 365 / nb_sign_days
-    end
     
-    peak_sub_P = value.(sum(model[:P_sub], dims=2))
-    peak_sub_max = maximum(peak_sub_P)
-    peak_sub_min = minimum(peak_sub_P)
-    case_headers = (["Model", "Objective", "Gap", "Solve Time", "Time periods", "Energy consumed", "Peak sub max", "Peak sub min"], ["", "kEUR/year", "%", "sec.","", "MWh/year", "MW on 1 DT", "MW on 1 DT"])
-    case_params = sig_round([(bilevel ? "Bilevel" : "Single Level") objective_value(model) relative_gap(model)*100 solve_time(model) nb_time_steps energy_consumed peak_sub_max peak_sub_min])
+    # Fetch data
+    DELTA_T         = model[:delta_t]
+    NB_PROFILES     = model[:nb_sign_days]
+    T   = model[:time_steps]  
+    bilevel         = model[:bilevel]
+    Ns              = get_nb_substations(network)
+    Nu              = get_nb_loads(network)
+    N = Ns + Nu
+    buses           = network.buses
+    BASE_POWER      = network.pu_basis.base_power
+
+    P_consumed = [buses[Ns + i].load_profile.time_serie[t]* buses[Ns + i].cos_phi for t in 1:T, i in 1:Nu]
+    
+    # 1. Peak load demand
+    peak_demand = maximum(sum(P_consumed, dims=2)) * BASE_POWER
+
+    # 2. Energy consumed
+    energy_consumed = sum(P_consumed) * BASE_POWER * DELTA_T / 60 * 365 / NB_PROFILES
+    
+    # 3. P_sub max and min
+    peak_sub_P = value.(sum(model[:P_sub], dims=2)) * BASE_POWER
+    peak_sub_max = maximum(peak_sub_P) * BASE_POWER
+    peak_sub_min = minimum(peak_sub_P) * BASE_POWER
+
+    # Build table
+    case_headers = (
+        ["Model", "Objective", "Gap", "Solve Time", "Time periods", "Energy consumed", "Peak Demand", "Peak sub max", "Peak sub min"], ["", "kEUR/year", "%", "sec.","", "MWh/year", "MW", "MW", "MW"])
+    case_params = sig_round([(bilevel ? "Bilevel" : "Single Level") objective_value(model) relative_gap(model)*100 solve_time(model) T energy_consumed peak_demand peak_sub_max peak_sub_min])
     pretty_table(case_params, header=case_headers)
-    # returns the table as a Matrix
+
+    # Returns the table as a Matrix
     return vcat([i[j] for i in case_headers, j in 1:length(case_headers[1])], case_params)
 end
 
-#This one seems okay: but check with results of Geoffrey
+# -- PRINT COST RESULTS FUNCTION --
+#
+function print_cost_results(model; latex=false)
+    network = model[:network_data]
+    DSO_costs = model[:DSO_costs]
+
+    L = get_nb_lines(network)
+    K = get_nb_conductors(network)
+    lines = network.lines 
+    conductors = network.conductors
+
+    # Investements to build new lines in k€
+    DSO_fixed_line = value(sum(model[:Alpha][l, k] * lines[l].length * conductors[k].cost for l in 1:L, k in 1:K))
+
+    BASE_POWER = network.pu_basis.base_power
+    SUB_COST = DSO_costs.substation
+    Ns = get_nb_substations(network)
+   
+    # Investements to build new substations in k€
+    DSO_fixed_sub = value(sum(model[:S_sub_capa][i] * BASE_POWER * SUB_COST for i in 1:Ns))
+
+    # Operational costs of losses on the length of the horizon
+    DSO_loss = value(model[:DSO_loss_costs]) * DSO_costs.amortization
+
+    # DSO future value: DSO should get back what he must pay per year for the investment + a certain margin
+    DSO_future_value = value(model[:DSO_fixed_costs]) * ((1 + DSO_costs.interest_rate)^DSO_costs.amortization) + value(model[:DSO_loss_costs]) * DSO_costs.amortization
+
+    # DSO revenues
+    DSO_revenues = value(sum(model[:grid_costs])) * DSO_costs.amortization
+    # Other costs
+    user_costs = value(sum(model[:user_costs]))
+    PV_costs = value(sum(model[:PV_costs]))
+    grid_costs = value(sum(model[:grid_costs]))
+    energy_costs = value(sum(model[:energy_costs]))
+    energy_revenues = value(sum(model[:energy_revenues]))
+
+    if model[:storage]
+        stor_costs = value(sum(model[:storage_costs]))
+        kpis_header = (["DSO fixed line", "DSO fixed sub", "DSO loss", "DSO future value", "DSO revenues", "User", "PV", "Storage", "Grid connection", "Energy imported", "Energy exported"],
+        ["kEUR", "kEUR", "kEUR", "kEUR", "kEUR", "kEUR/year", "kEUR/year", "kEUR/year", "kEUR/year", "kEUR/year", "kEUR/year"])
+        kpis = sig_round([DSO_fixed_line DSO_fixed_sub DSO_loss DSO_future_value DSO_revenues user_costs PV_costs stor_costs grid_costs energy_costs energy_revenues])
+    else
+        kpis_header = (["DSO fixed line", "DSO fixed sub", "DSO loss", "DSO future value", "DSO revenues", "User", "PV", "Grid connection", "Energy imported", "Energy exported"],
+        ["kEUR", "kEUR", "kEUR", "kEUR", "kEUR", "kEUR/year", "kEUR/year", "kEUR/year", "kEUR/year", "kEUR/year"])
+        kpis = sig_round([DSO_fixed_line DSO_fixed_sub DSO_loss DSO_future_value DSO_revenues user_costs PV_costs grid_costs energy_costs energy_revenues])
+    end
+    
+    if latex
+        pretty_table(kpis, header=kpis_header, backend=Val(:latex))
+    else
+        pretty_table(kpis, header=kpis_header)
+    end
+    # returns the table as a Matrix
+    return vcat([i[j] for i in kpis_header, j in 1:length(kpis_header[1])], kpis)
+end
+
+
+# -- PRINT NETWORK RESULTS FUNCTION --
+#
 function print_network_results(model; latex=false)
     network = model[:network_data]
     nb_lines_built = 0
@@ -188,7 +480,7 @@ function print_network_results(model; latex=false)
     cond_string = ["Nb lines cond "*string(i) for i in 1:K]
 
     lines_cond = [[i for (i, a) in enumerate(value.(model[:Alpha])[:, j]) if isapprox(a, 1, rtol=1e-2)] for j in 1:K]
-
+    
     kpis_header = ([["Nb lines built", "Nb substations"];cond_string], [["-", "-"];fill("-", 1:K)])
     kpis = reshape(string.([[nb_lines_built, nb_substations];lines_cond]),1,:)
     if latex
@@ -200,62 +492,10 @@ function print_network_results(model; latex=false)
     return vcat([i[j] for i in kpis_header, j in 1:length(kpis_header[1])], kpis)
 end
 
-function print_cost_results(model; latex=false)
-    network = model[:network_data]
-    DSO_costs = model[:DSO_costs]
 
-
-    L = get_nb_lines(network)
-    K = get_nb_conductors(network)
-    lines = network.lines 
-    conductors = network.conductors
-
-    # Investements to build new lines in k€
-    DSO_fixed_line = value(sum(model[:Alpha][l, k] * lines[l].length * conductors[k].cost for l in 1:L, k in 1:K))
-
-    BASE_POWER = network.pu_basis.base_power
-    SUB_COST = DSO_costs.substation
-    Ns = get_nb_substations(network)
-   
-    # Investements to build new substations in k€
-    DSO_fixed_sub = value(sum(model[:S_sub_capa][i] * BASE_POWER * SUB_COST for i in 1:Ns))
-
-   
-    # Operational costs of losses on the length of the horizon
-    DSO_loss = value(model[:DSO_loss_costs]) * DSO_costs.amortization
-
-    # DSO future value: DSO should get back what he must pay per year for the investment + a certain margin
-    DSO_future_value = value(model[:DSO_fixed_costs]) * ((1 + DSO_costs.interest_rate)^DSO_costs.amortization) + value(model[:DSO_loss_costs]) * DSO_costs.amortization
-
-    # DSO revenues
-    DSO_revenues = value(sum(model[:grid_costs])) * DSO_costs.amortization
-    # Other costs
-    user_costs = value(sum(model[:user_costs]))
-    PV_costs = value(sum(model[:PV_costs]))
-    grid_costs = value(sum(model[:grid_costs]))
-    energy_costs = value(sum(model[:energy_costs]))
-    energy_revenues = value(sum(model[:energy_revenues]))
-    if model[:storage]
-        stor_costs = value(sum(model[:storage_costs]))
-        kpis_header = (["DSO fixed line", "DSO fixed sub", "DSO loss", "DSO future value", "DSO revenues", "User", "PV", "Storage", "Grid connection", "Energy imported", "Energy exported"],
-        ["kEUR", "kEUR", "kEUR", "kEUR", "kEUR", "kEUR/year", "kEUR/year", "kEUR/year", "kEUR/year", "kEUR/year", "kEUR/year"])
-        kpis = sig_round([DSO_fixed_line DSO_fixed_sub DSO_loss DSO_future_value DSO_revenues user_costs PV_costs stor_costs grid_costs energy_costs energy_revenues])
-    end
-    kpis_header = (["DSO fixed line", "DSO fixed sub", "DSO loss", "DSO future value", "DSO revenues", "User", "PV", "Grid connection", "Energy imported", "Energy exported"],
-        ["kEUR", "kEUR", "kEUR", "kEUR", "kEUR", "kEUR/year", "kEUR/year", "kEUR/year", "kEUR/year", "kEUR/year"])
-    kpis = sig_round([DSO_fixed_line DSO_fixed_sub DSO_loss DSO_future_value DSO_revenues user_costs PV_costs grid_costs energy_costs energy_revenues])
-    if latex
-        pretty_table(kpis, header=kpis_header, backend=Val(:latex))
-    else
-        pretty_table(kpis, header=kpis_header)
-    end
-    # returns the table as a Matrix
-    return vcat([i[j] for i in kpis_header, j in 1:length(kpis_header[1])], kpis)
-end
-
-
-# seems okay
-function print_grid_results(model; latex=true)
+# -- PRINT GRID RESULTS FUNCTION --
+#
+function print_grid_results(model; latex=false)
     network = model[:network_data]
     DELTA_T = model[:delta_t]
     NB_PROFILES = model[:nb_sign_days]
@@ -284,8 +524,8 @@ function print_grid_results(model; latex=true)
     L = get_nb_lines(network)
     K = get_nb_conductors(network)
 
-    loss = sum(lines[l].length * conductors[k].r *
-    model[:I_sqr_k][t, l, k] for t in 1:T, l in 1:L, k in 1:K) * MULTIPLIER * BASE_POWER
+    loss = value(sum(lines[l].length * conductors[k].r *
+    model[:I_sqr_k][t, l, k] for t in 1:T, l in 1:L, k in 1:K)) * MULTIPLIER * BASE_POWER
 
     # Total grid costs
     User_costs = model[:User_costs]

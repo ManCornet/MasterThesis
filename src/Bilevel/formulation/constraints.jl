@@ -129,8 +129,7 @@ function _add_VoltageOpConstraints!(model::JuMP.AbstractModel, ::StrongVoltages)
     return 
 end
 
-################## TO DO ##############################
-#######################################################
+
 function _add_VoltageOpConstraints!(model::JuMP.AbstractModel, ::RelaxedVoltages)::Nothing
 
     network_data = model[:network_data]
@@ -628,10 +627,10 @@ function _add_LowerConstraints!(model::JuMP.AbstractModel; storage::Bool=false):
     BASE_POWER = network_data.pu_basis.base_power
     buses = network_data.buses 
 
-    PV_prod = [(isnothing(buses[Ns + i].PV_installation) ? zeros(Float64, T) : buses[Ns + i].PV_installation.profile.time_serie) for i in 1:Nu]
+    PV_prod = [(isnothing(buses[Ns + i].PV_installation) ? 0.0 : buses[Ns + i].PV_installation.profile.time_serie[t]) for t in 1:T, i in 1:Nu]
 
-    P_consumed = [buses[i].load_profile.time_serie .* buses[i].cos_phi for i in (Ns+1):N]
-    Q_consumed = [buses[i].load_profile.time_serie .* sin(acos(buses[i].cos_phi)) for i in (Ns+1):N]
+    P_consumed = [buses[i].load_profile.time_serie[t] * buses[i].cos_phi for t in 1:T, i in (Ns+1):N]
+    Q_consumed = [buses[i].load_profile.time_serie[t] * sin(acos(buses[i].cos_phi)) for t in 1:T, i in (Ns+1):N]
 
     p_pv = model[:p_pv]
     s_conv_pv = model[:s_conv_pv]
@@ -643,7 +642,7 @@ function _add_LowerConstraints!(model::JuMP.AbstractModel; storage::Bool=false):
     s_grid_max = model[:s_grid_max]
 
     # Power balance
-    power_balance = JuMP.@expression(model, [t=1:T, i=1:Nu], P_consumed[i][t] - p_pv[t, i])
+    power_balance = JuMP.@expression(model, [t=1:T, i=1:Nu], P_consumed[t, i] - p_pv[t, i])
 
     if storage 
         # Fetching the required data
@@ -674,13 +673,13 @@ function _add_LowerConstraints!(model::JuMP.AbstractModel; storage::Bool=false):
 
     @constraints(model, begin
         [t=1:T, i=1:Nu], p_imp[t, i] - p_exp[t, i] == power_balance[t, i]
-        [t=1:T, i=1:Nu], q_imp[t, i] - q_exp[t, i] == Q_consumed[i][t]
+        [t=1:T, i=1:Nu], q_imp[t, i] - q_exp[t, i] == Q_consumed[t, i]
         [t=1:T, i=1:Nu], p_imp[t, i] <= s_grid_max[i]
         [t=1:T, i=1:Nu], q_imp[t, i] <= s_grid_max[i]
         [t=1:T, i=1:Nu], p_exp[t, i] <= s_grid_max[i]
         [t=1:T, i=1:Nu], q_exp[t, i] <= s_grid_max[i]
         [t=1:T, i=1:Nu], p_pv[t, i] <= s_conv_pv[i] 
-        [t=1:T, i=1:Nu], p_pv[t, i] <= PV_prod[i][t] * p_pv_max[i] # T
+        [t=1:T, i=1:Nu], p_pv[t, i] <= PV_prod[t, i] * p_pv_max[i] # T
         [t=1:T, i=1:Nu], p_exp[t, i] <= p_pv[t, i]
     end)
     return

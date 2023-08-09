@@ -176,7 +176,7 @@ storage     = false #parsed_args["storage"]
 
 # ------- Profiles parameters -------
 nb_days     = 2 #parsed_args["days"]
-delta_t     = 60 # parsed_args["delta_t"]
+delta_t     = 720 # parsed_args["delta_t"]
 peak_power  = 7.0 # parsed_args["PP"]
 EV          = false #parsed_args["EV"]
 EHP         = false #parsed_args["EHP"]
@@ -360,7 +360,22 @@ formulation = Bilevel.Formulation(  powerflow = Bilevel.BFM(),
                             i_constraints = Bilevel.StrongCurrents())
 
 
-
+# struct UserCosts
+#     PV::Float64             # PV capacity cost in [€/kWc]
+#     PV_conv::Float64        # PV converter cost in 
+#     storage::Float64
+#     EI::Float64             # energy imported [€/kWh]
+#     EE::Float64             # energy exported [€/kWh]
+#     DSOEI::Float64          # DSO energy imported cost [€/kWh]
+#     DSOEE::Float64          # DSO energy exported cost [€/kWh]
+#     GCC::Float64            # grid connection cost [€/kVA/year]
+#     amortization_PV::Int64  # amortization period of pv panels
+#     amortization_PVC::Int64 # amortization periof of pv converters
+#     amortization_storage::Int64
+#     money_basis::Float64    # money basis in k€
+#     WEIGHT_OBJ::Float64
+# end
+                                                       
 DSO_costs  = DSOCosts(substation_cost, 0.7 * EIC, amort_DSO, interest_rate_DSO, weight_I, weight_V, money_basis, weight_obj1)
 User_costs = UserCosts(PV_cost, PV_conv_cost, storage_cost, EIC, EEC, DSOEC, DSOEC, GCC, amort_PV, amort_PV_conv, amort_storage, money_basis, weight_obj2)
 
