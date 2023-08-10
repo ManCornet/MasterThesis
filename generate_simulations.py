@@ -52,20 +52,36 @@
 #
 
 # Inclusion of EVs in load profiles
-EVs = [False, True]
+EV = [False, True]
 # Inclusion of HPs in load profiles
-HPs = [False, True]
-# Maximum PV capacity per load bus [MVA]
-MAX_PV_CAPACITY_PER_NODE = [0.4, 0.0, 0.8, 1.6]
-# Cost of the energy that is imported [k€/kWh]
-IMP_ELECTRICITY_ENRG_COST = [0.3, 0.6, 0.9]
-# Cost of the energy that is exported [k€/kWh]
-EXP_ELECTRICITY_ENRG_COST = [0.1, 0.2, 0.3]
-# DSO cost of the energy that is imported [k€/kWh]
-IMP_ELECTRICITY_DSO_COST = [0.1, 0.2, 0.3]
-# Grid connection cost [k€/kWh]
-GRID_CONNECTION_COST = [80, 120, 160]
+HP = [False, True]
+# Inclusion of storage in the simulations
+storage = [False, True]
+Storage_cost = [300, 150, 500]
+# Network reconfiguration allowed or not
+network_reconfig = [False, True]
+# Bilevel or single model
+bilevel = [True, False]
 
+# Maximum PV capacity per load bus [MVA]
+PV_CAPA = [0.4, 0.0, 0.8, 1.6]
+PVC = [500, 150, 300]
+# Cost of the energy that is imported [k€/kWh]
+EIC = [0.3, 0.6, 0.9]
+# Cost of the energy that is exported [k€/kWh]
+EEC = [0.1, 0.2, 0.3]
+# DSO cost of the energy that is imported [k€/kWh]
+DSOEC = [0.1, 0.2, 0.3]
+# Grid connection cost [k€/kWh]
+GCC = [80, 120, 160]
+# Weight I relaxed 
+weight_I = [1.0e-2, 1.0e-3, 1.0e-1]
+
+# Reference configuration
+ref_config = [EV[0], HP[0], storage[0], Storage_cost[0], network_reconfig[0], bilevel[0], PV_CAPA[0], PVC[0], EIC[0], EEC[0], DSOEC[0], GCC[0], weight_I[0]]
+
+# Used to make each cute line of our shell script
+iterator = [EV, HP, storage, Storage_cost, network_reconfig, bilevel, PV_CAPA, PVC, EIC, EEC, DSOEC, GCC, weight_I]
 
 # ----------------------
 #    Script Properties
@@ -92,12 +108,33 @@ script_file.write("""#!/usr/bin/env bash
 \n""")
 
 # Going through all parameters defined previously (more can be added with other for loops)
-for l in nb_elec_lines:
-    for ps in power_station_voltage:
+for i, variable in enumerate(iterator):
+        
+        # We skip storage by itself
+        if i == 2:
+                continue
+        
+        # Looping over all possible values of the parameters
+        for v, value in enumerate(variable):
+                
+                # Current configuration
+                curr_conf = ref_config
 
-        # Writting down new simulation test in command line in the script
-        script_file.write(f"""julia --project --sysimage JuliaSysimage.so src/Bilevel/main.jl 
-                            --EV {l} --power_stations {ps} \n""")
+                # If we are change storage value, we change storage to true to take modification
+                if i == 3:
+                    curr_conf[2] = True
+
+                # Applying modification
+                curr_conf[i] = value
+
+                # Writting down new simulation test in command line in the script
+                terminal_command = f"""julia --project src/main_bilevel.jl --EV {str(curr_conf[0])} --EHP {str(curr_conf[1])} --storage {str(curr_conf[2])} --Storage_cost {str(curr_conf[3])} --network_reconfig {str(curr_conf[4])} --bilevel {str(curr_conf[5])} --PV_CAPA {str(curr_conf[6])} --PVC {str(curr_conf[7])} --EIC {str(curr_conf[8])} --EEC {str(curr_conf[9])} --DSOEC {str(curr_conf[10])} --GCC {str(curr_conf[11])} --weight_I {str(curr_conf[12])}\n"""
+
+                # Checking for bitches
+                terminal_command = terminal_command.replace("True", "true")
+                terminal_command = terminal_command.replace("False", "false")
+
+                script_file.write(terminal_command)
 
 # Closing the script
 script_file.close()

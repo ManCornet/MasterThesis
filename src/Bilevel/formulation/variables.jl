@@ -21,9 +21,9 @@ function _add_BusVariables!(model::JuMP.AbstractModel)::Nothing
                         S_sub[1:T, 1:Ns] >= 0
                         S_sub_capa[1:Ns] >= 0                                    
                         Beta[1:Ns], Bin
-                        DSO_fixed_costs
-                        DSO_loss_costs
-                        DSO_op_limits
+                        DSO_fixed_costs >= 0
+                        DSO_loss_costs >= 0
+                        DSO_op_limits >= 0
                     end
                     )
 
@@ -112,10 +112,18 @@ function _add_BranchVariables!(model::JuMP.AbstractModel, ::BFM)::Nothing
     JuMP.@variables(model,   
                     begin 
                         P_ij_k[1:T, 1:L, 1:K]
-                        Q_ij_k[1:T, 1:L, 1:K]                           
+                        P_ij[1:T, 1:L]
+                        Q_ij_k[1:T, 1:L, 1:K]          
+                        Q_ij[1:T, 1:L]
                         I_sqr_k[1:T, 1:L, 1:K] >= 0
+                        I_sqr[1:T, 1:L]
                     end
                     )
+    JuMP.@constraints(model, begin 
+                    [t=1:T, l=1:L], P_ij[t,l] == sum(P_ij_k[t,l,k] for k in 1:K)
+                    [t=1:T, l=1:L], Q_ij[t,l] == sum(Q_ij_k[t,l,k] for k in 1:K)
+                    [t=1:T, l=1:L], I_sqr[t,l] == sum(I_sqr_k[t,l,k] for k in 1:K)
+                end)
     return
 end
 
@@ -149,6 +157,7 @@ function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::T
                         )
                         
     elseif isa(topology_choice, ReconfigAllowed)
+        println("hello")
         JuMP.@variables(model,   
                     begin 
                         Alpha[1:L, 1:K], Bin

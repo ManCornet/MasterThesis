@@ -9,7 +9,7 @@ using Logging, Printf
 using Plots
 using Graphs, GraphRecipes
 using PrettyTables, Latexify, LaTeXStrings
-using PGFPlotsX
+using PGFPlotsX, Statistics
 
 
 export DSOCosts, UserCosts, Simulation, Formulation, build_model 

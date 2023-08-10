@@ -13,6 +13,12 @@
 # =============================================================================
 #                                   Functions
 # =============================================================================
+include("./Bilevel/Bilevel.jl")
+include("utils.jl")
+using .Bilevel
+using ArgParse, Dates
+using PrettyTables, XLSX, DataFrames
+
 function parse_commandline(;as_symbols::Bool=false)
 
     s = ArgParseSettings()
@@ -23,6 +29,11 @@ function parse_commandline(;as_symbols::Bool=false)
             help = "Print the details of the simulation"
             arg_type = Bool
             default = true
+
+        "--network_graph_name"
+            help = "Name of the network graphs"
+            arg_type = String
+            default = "network_time_step"
 
         # ------- Choice of the model -------
         "--bilevel"
@@ -37,10 +48,15 @@ function parse_commandline(;as_symbols::Bool=false)
             arg_type = Bool
             default = false
 
+        "--network_reconfig"
+            help = "If network can be reconfigurated"
+            arg_type = Bool
+            default = false
+
         # ------- Profiles parameters -------
         "--days"
             help = "Number of significative days [day]"
-            arg_type = Integer
+            arg_type = Int64
             default = 2
         
         "--delta_t"
@@ -49,7 +65,7 @@ function parse_commandline(;as_symbols::Bool=false)
                                     dataset containing the load & PV profiles 
                     """
             arg_type = Int64
-            default = 60 # 1h per default
+            default = 720*2 # 1h per default
         
         "--PP"
             help = "Load peak power"
@@ -142,7 +158,7 @@ function parse_commandline(;as_symbols::Bool=false)
         "--SUB_COST"
             help = "Substation cost [k€/MVA]"
             arg_type = Float64
-            default = 1e3
+            default = 1.0e3
 
         "--AMORT_DSO"
             help = "Duration of the amortization of the DSO [year]"
@@ -151,8 +167,23 @@ function parse_commandline(;as_symbols::Bool=false)
 
         "--IR_DSO"
             help = "Interest rate DSO [%/year]"
-            arg_type = Int64
+            arg_type = Float64
             default = 0.06
+
+        "--weight_I"
+            help = "Weight of the penalization I [k€/MVA]"
+            arg_type = Float64
+            default = 1.0e-2
+
+        "--weight_V"
+            help = "Weight of the penalization V [k€/MVA]"
+            arg_type = Float64
+            default = 1.0e-2
+        
+        "--relax_voltage"
+            help = "Weight of the penalization V [k€/MVA]"
+            arg_type = Bool
+            default = false
     end
     return parse_args(s; as_symbols=as_symbols)
 end
@@ -162,256 +193,316 @@ end
 #                                Main function
 # =============================================================================
 
-# Put everything inside a main function after but for now,
-# script !
 
-#function main()
-# ================= Parsing arguments of main command line ================
-#parsed_args = parse_commandline(as_symbols=false)
-verbose     = true #parsed_args["verbose"]
+function main()
 
-# ------- Choice of the model -------
-bilevel     = true #parsed_args["bilevel"]
-storage     = false #parsed_args["storage"]
+    # ================= Parsing arguments of main command line ================
+    parsed_args  = parse_commandline(as_symbols=false)
+    param_keys   = collect(keys(parsed_args))
+    param_values = collect(values(parsed_args))
 
-# ------- Profiles parameters -------
-nb_days     = 2 #parsed_args["days"]
-delta_t     = 720 # parsed_args["delta_t"]
-peak_power  = 7.0 # parsed_args["PP"]
-EV          = false #parsed_args["EV"]
-EHP         = false #parsed_args["EHP"]
+    verbose     = parsed_args["verbose"]
 
-# ------- Users parameters -------
-PV_pen        = 1.0     # parsed_args["PV_pen"]
-storage_pen   = 1.0     #parsed_args["Storage_pen"]
-storage_eff   = 0.98
-storage_cost  = 0   # k€/Mwh
-amort_storage = 15      # parsed_args["AMORT_STORAGE"]
-PV_capa       = 0.4     # parsed_args["PV_CAPA"]
-PV_cost       = 500.0   # parsed_args["PVC"]
-PV_conv_cost  = 200.0   # parsed_args["PVCC"]
-amort_PV_conv = 10      # parsed_args["AMORT_PV_CONV"]
-amort_PV      = 25      # parsed_args["AMORT_PV"]
-EIC           = 0.3     # parsed_args["EIC"] #old 0.3
-EEC           = 0.1     # parsed_args["EEC"]
-DSOEC         = 0.1     # parsed_args["DSOEC"]
-GCC           = 80.0    # parsed_args["GCC"]
-cos_phi       = 0.95
+    
+    # ------- Choice of the model -------
+    bilevel     = parsed_args["bilevel"]
+    storage     = parsed_args["storage"]
 
-# ------- DSO parameters -------
-substation_cost   = 1e3  # parsed_args["SUB_COST"]
-amort_DSO         = 50   # parsed_args["AMORT_DSO"]
-interest_rate_DSO = 0.06 # parsed_args["IR_DSO"]
-money_basis = 1.0
-weight_I = weight_V = 1.0e-2
-weight_obj1 = weight_obj2 = 1.0
+    # ------- Profiles parameters -------
+    nb_days     = parsed_args["days"]
+    delta_t     = parsed_args["delta_t"]
+    peak_power  = parsed_args["PP"]
+    EV          = parsed_args["EV"]
+    EHP         = parsed_args["EHP"]
 
-# ================= Printing the parameters of the simulation =============
-# Idea do the tables for each type of parameters !!!
-if verbose 
-    print_header()
-    print_title("Running a simulation with the following characteristics:")
-    header = (  ["Model Type", "EV", "EHP","Delta_t", "PV_CAPA", "EIC", 
-                "EEC", "DSOEC", "GCC"],
-                ["[-]", "[-]","[-]", "[min]", "[MVA]", "[€/kWh]", 
-                "[€/kWh]", "[€/kWh]", "[€/kVA/y]"])
-    model = bilevel ? "bilevel" : "singlelevel"
-    data = [model EV EHP delta_t PV_capa EIC EEC DSOEC GCC]
-    pretty_table(   data; header = header, 
-                    header_crayon = crayon"yellow bold", tf = tf_unicode_rounded)
-    print_segment("-")
-end
+    # ------- Users parameters -------
+    PV_pen        = parsed_args["PV_pen"]
+    storage_pen   = parsed_args["Storage_pen"]
+    storage_eff   = parsed_args["Storage_eff"]
+    storage_cost  = parsed_args["Storage_cost"]
+    amort_storage = parsed_args["AMORT_STORAGE"]
+    PV_capa       = parsed_args["PV_CAPA"]
+    PV_cost       = parsed_args["PVC"]
+    PV_conv_cost  = parsed_args["PVCC"]
+    amort_PV_conv = parsed_args["AMORT_PV_CONV"]
+    amort_PV      = parsed_args["AMORT_PV"]
+    EIC           = parsed_args["EIC"] #old 0.3
+    EEC           = parsed_args["EEC"]
+    DSOEC         = parsed_args["DSOEC"]
+    GCC           = parsed_args["GCC"]
+    cos_phi       = 0.95
 
-# =========================== Network data  ===============================
+    # ------- DSO parameters -------
+    network_reconfig    = parsed_args["network_reconfig"]
+    substation_cost     = parsed_args["SUB_COST"]
+    amort_DSO           = parsed_args["AMORT_DSO"]
+    interest_rate_DSO   = parsed_args["IR_DSO"]
+    weight_I = weight_V = parsed_args["weight_I"]
+    money_basis = 1.0
+    weight_obj1 = weight_obj2 = 1.0
 
-# -- Fetching the path of the main directories --
-root_dir = splitdir(@__DIR__)[1]
-plot_dir = joinpath(root_dir, "plots")
-network_data_dir  = joinpath(root_dir, "NetworkModels")
-profiles_data_dir = joinpath(root_dir, "ManchesterData", "LCT_profiles")
-
-# -- Loading the excel file containing the network topology --
-# Add choice for the test network
-#NETWORK_PATH = joinpath(network_data_dir, "network_Nahman_Peric_2S23H.xlsx") 
-NETWORK_PATH = joinpath(network_data_dir, "model_2S2H.xlsx") 
-pu_basis = define_pu_basis()
-# -- Fetching the network data --
-network, network_topology = get_network_data(NETWORK_PATH; max_pv_capa=PV_capa, pu_basis=pu_basis, cos_phi=cos_phi)
-#print_network_topology(network_topology)
-#save_struct(network_topology, "network_topology.json")
-#save_struct(network, "network_data.json")
-
-# =========================== Load profiles  ==============================
-
-# -- Loading the excel file containing the data for the load profiles --
-SUMMER_LOAD_PATH = joinpath(profiles_data_dir, "Summer_Load_Profiles.xlsx")
-WINTER_LOAD_PATH = joinpath(profiles_data_dir, "Winter_Load_Profiles.xlsx")
-EV_PATH  = EV ? joinpath(profiles_data_dir, "Winter_EV_Profiles.xlsx") : nothing
-EHP_PATH = EHP ? joinpath(profiles_data_dir, "Winter_EHP_Profiles.xlsx") : nothing
-
-# -- Building the base load profile on which to scale --
-PROFILE_PATHS = [SUMMER_LOAD_PATH, WINTER_LOAD_PATH]
-
-base_daily_profiles = Vector{Matrix{Float64}}()
-for path in PROFILE_PATHS 
-    base_daily_profile, _ = build_daily_load_profiles(path, get_nb_loads(network))
-    println(base_daily_profile)
-    push!(base_daily_profiles, base_daily_profile * 1e-3 / network.pu_basis.base_power)
-end
-
-base_load_profiles, base_peak, _ = build_profiles(base_daily_profiles)
-scaling_factor = peak_power / base_peak
-base_load_profiles *= scaling_factor
-
-# -- Building the load profiles with desired characteristics --
-nb_agg_periods = process_time_steps(delta_t=delta_t, data_granularity=5)
-
-scaling_EHP = [0.0, 1.0]
-scaling_EV  = [1.0, 1.0]
-
-@assert length(scaling_EHP) == nb_days
-@assert length(scaling_EV) == nb_days
-
-daily_profiles = Vector{Matrix{Float64}}()
-for (index, path) in enumerate(PROFILE_PATHS)
-    daily_profile, _ = build_daily_load_profiles(  path, 
-                                                get_nb_loads(network);
-                                                nb_agg_periods=nb_agg_periods,
-                                                EV=EV, 
-                                                EHP=EHP,
-                                                EV_PATH=EV_PATH, 
-                                                EHP_PATH=EHP_PATH,
-                                                scaling_EHP=scaling_EHP[index],
-                                                scaling_EV=scaling_EV[index])
-    push!(daily_profiles, daily_profile * 1e-3 / network.pu_basis.base_power)
-end
-
-load_profiles, _ , _ = build_profiles(daily_profiles; scaling_factor=scaling_factor)
-
-print_load_profiles( joinpath(plot_dir, "load_profiles.pdf"), 
-                    base_load_profiles, 
-                    load_profiles;
-                    base_granularity=5, 
-                    delta_t=delta_t, 
-                    EV=EV, 
-                    EHP=EHP
-                )
-
-# -- Add load profiles to network structure -- 
-add_load_profiles!(network, load_profiles; delta_t=delta_t, pu_basis=pu_basis)
-#save_struct(network, "network_data.json")
-
-# =========================== PV profiles  ==============================
-
-if PV_pen > 0
-
-    PV_PATH = joinpath(profiles_data_dir, "Summer_PV_Profiles.xlsx")
-    scaling_PV = [1.0, 0.1]
-    nb_PV_profiles = floor(Int, PV_pen * get_nb_loads(network))
-    @assert length(scaling_PV) == nb_days
-
-    daily_PV_profiles = Vector{Matrix{Float64}}()
-    ids_profiles = []
-    for d in 1:nb_days
-        daily_PV_profile, _, id_profiles = build_daily_PV_profiles(PV_PATH,
-                                                                nb_PV_profiles; 
-                                                                scaling_PV=scaling_PV[d],
-                                                                nb_agg_periods=nb_agg_periods,
-                                                                seed=nothing)
-
-        push!(daily_PV_profiles, daily_PV_profile)
-        push!(ids_profiles, id_profiles)
+    # ================= Printing the parameters of the simulation =============
+    if verbose 
+        print_header()
+        print_title("Running a simulation with the following characteristics:")
+        header = (  ["Model Type", "EV", "EHP","Delta_t", "PV_CAPA", "EIC", 
+                    "EEC", "DSOEC", "GCC"],
+                    ["[-]", "[-]","[-]", "[min]", "[MVA]", "[€/kWh]", 
+                    "[€/kWh]", "[€/kWh]", "[€/kVA/y]"])
+        model = bilevel ? "bilevel" : "singlelevel"
+        data = [model EV EHP delta_t PV_capa EIC EEC DSOEC GCC]
+        pretty_table(   data; header = header, 
+                        header_crayon = crayon"yellow bold", tf = tf_unicode_rounded)
+        print_segment("-")
     end
 
-    PV_profiles, _ , _ = build_profiles(daily_PV_profiles)
+    # =========================== Network data  ===============================
 
-    print_PV_profiles(joinpath( plot_dir, "PV_profiles.pdf"), PV_profiles;
-                                delta_t=delta_t, id_profiles=ids_profiles[1])
+    # -- Fetching the path of the main directories --
+    root_dir          = splitdir(@__DIR__)[1]
+    plot_dir          = joinpath(root_dir, "plots")
+    network_data_dir  = joinpath(root_dir, "NetworkModels")
+    profiles_data_dir = joinpath(root_dir, "ManchesterData", "LCT_profiles")
 
-    # -- Add PV profiles to network structure -- 
-    PQ_diagram = (max_q = 0.3, slope=-1.0)
-    add_PV_profiles!(network, PV_profiles, ids_profiles[1]; 
-                    PQ_diagram = PQ_diagram, delta_t=delta_t)
+    # -- Loading the excel file containing the network topology --
 
-    println(ids_profiles[1])
-    # -- Add storage -- 
-    if storage 
-        seed = nothing
-     
-        nb_storage_units = floor(Int, storage_pen * nb_PV_profiles)
-        if !isnothing(seed)
-            Random.seed!(seed)
-            id_storage = Random.rand(ids_profiles[1], nb_storage_units)
-        else 
-            id_storage = ids_profiles[1][1:nb_storage_units]
+    # Add choice for the test network
+    NETWORK_PATH = joinpath(network_data_dir, "network_Nahman_Peric_2S23H.xlsx") 
+    #NETWORK_PATH = joinpath(network_data_dir, "model_2S2H.xlsx") 
+    pu_basis = define_pu_basis()
+
+    # -- Fetching the network data --
+    network, network_topology = get_network_data(NETWORK_PATH; max_pv_capa=PV_capa, pu_basis=pu_basis, cos_phi=cos_phi)
+    #print_network_topology(network_topology)
+    #save_struct(network_topology, "network_topology.json")
+    #save_struct(network, "network_data.json")
+
+    # =========================== Load profiles  ==============================
+
+    # -- Loading the excel file containing the data for the load profiles --
+    SUMMER_LOAD_PATH = joinpath(profiles_data_dir, "Summer_Load_Profiles.xlsx")
+    WINTER_LOAD_PATH = joinpath(profiles_data_dir, "Winter_Load_Profiles.xlsx")
+    EV_PATH  = EV ? joinpath(profiles_data_dir, "Winter_EV_Profiles.xlsx") : nothing
+    EHP_PATH = EHP ? joinpath(profiles_data_dir, "Winter_EHP_Profiles.xlsx") : nothing
+
+    # -- Building the base load profile on which to scale --
+    PROFILE_PATHS = [SUMMER_LOAD_PATH, WINTER_LOAD_PATH]
+
+    base_daily_profiles = Vector{Matrix{Float64}}()
+    for path in PROFILE_PATHS 
+        base_daily_profile, _ = build_daily_load_profiles(path, get_nb_loads(network))
+        push!(base_daily_profiles, base_daily_profile * 1e-3 / network.pu_basis.base_power)
+    end
+
+    base_load_profiles, base_peak, _ = build_profiles(base_daily_profiles)
+    scaling_factor = peak_power / base_peak
+    base_load_profiles *= scaling_factor
+
+    # -- Building the load profiles with desired characteristics --
+    nb_agg_periods = process_time_steps(delta_t=delta_t, data_granularity=5)
+
+    scaling_EHP = [0.0, 1.0]
+    scaling_EV  = [1.0, 1.0]
+
+    @assert length(scaling_EHP) == nb_days
+    @assert length(scaling_EV) == nb_days
+
+    daily_profiles = Vector{Matrix{Float64}}()
+    for (index, path) in enumerate(PROFILE_PATHS)
+        daily_profile, _ = build_daily_load_profiles(  path, 
+                                                    get_nb_loads(network);
+                                                    nb_agg_periods=nb_agg_periods,
+                                                    EV=EV, 
+                                                    EHP=EHP,
+                                                    EV_PATH=EV_PATH, 
+                                                    EHP_PATH=EHP_PATH,
+                                                    scaling_EHP=scaling_EHP[index],
+                                                    scaling_EV=scaling_EV[index])
+        push!(daily_profiles, daily_profile * 1e-3 / network.pu_basis.base_power)
+    end
+
+    load_profiles, _ , _ = build_profiles(daily_profiles; scaling_factor=scaling_factor)
+
+    print_load_profiles( joinpath(plot_dir, "load_profiles.pdf"), 
+                        base_load_profiles, 
+                        load_profiles;
+                        base_granularity=5, 
+                        delta_t=delta_t, 
+                        EV=EV, 
+                        EHP=EHP
+                    )
+
+    # -- Add load profiles to network structure -- 
+    add_load_profiles!(network, load_profiles; delta_t=delta_t, pu_basis=pu_basis)
+    #save_struct(network, "network_data.json")
+
+    # =========================== PV profiles  ==============================
+
+    if PV_pen > 0
+
+        PV_PATH = joinpath(profiles_data_dir, "Summer_PV_Profiles.xlsx")
+        scaling_PV = [1.0, 0.1]
+        nb_PV_profiles = floor(Int, PV_pen * get_nb_loads(network))
+        @assert length(scaling_PV) == nb_days
+
+        daily_PV_profiles = Vector{Matrix{Float64}}()
+        ids_profiles = []
+        for d in 1:nb_days
+            daily_PV_profile, _, id_profiles = build_daily_PV_profiles(PV_PATH,
+                                                                    nb_PV_profiles; 
+                                                                    scaling_PV=scaling_PV[d],
+                                                                    nb_agg_periods=nb_agg_periods,
+                                                                    seed=nothing)
+
+            push!(daily_PV_profiles, daily_PV_profile)
+            push!(ids_profiles, id_profiles)
         end
 
-        add_storage!(network, storage_eff, id_storage)
+        PV_profiles, _ , _ = build_profiles(daily_PV_profiles)
+
+        print_PV_profiles(joinpath( plot_dir, "PV_profiles.pdf"), PV_profiles;
+                                    delta_t=delta_t, id_profiles=ids_profiles[1])
+
+        # -- Add PV profiles to network structure -- 
+        PQ_diagram = (max_q = 0.3, slope=-1.0)
+        add_PV_profiles!(network, PV_profiles, ids_profiles[1]; 
+                        PQ_diagram = PQ_diagram, delta_t=delta_t)
+
+        # -- Add storage -- 
+        if storage 
+            seed = nothing
+        
+            nb_storage_units = floor(Int, storage_pen * nb_PV_profiles)
+            if !isnothing(seed)
+                Random.seed!(seed)
+                id_storage = Random.rand(ids_profiles[1], nb_storage_units)
+            else 
+                id_storage = ids_profiles[1][1:nb_storage_units]
+            end
+
+            add_storage!(network, storage_eff, id_storage)
+        end
     end
+
+    # =========================== Costs definition  ===========================
+                               
+    DSO_costs = DSOCosts(   
+                            substation_cost, 
+                            0.7 * EIC, 
+                            amort_DSO, 
+                            interest_rate_DSO, 
+                            weight_I, 
+                            weight_V, 
+                            money_basis, 
+                            weight_obj1
+                        )
+
+    User_costs = UserCosts(
+                            PV_cost, 
+                            PV_conv_cost, 
+                            storage_cost, 
+                            EIC, 
+                            EEC, 
+                            DSOEC, 
+                            DSOEC, 
+                            GCC, 
+                            amort_PV, 
+                            amort_PV_conv, 
+                            amort_storage, 
+                            money_basis, 
+                            weight_obj2
+                        )
+
+    # =========================== Creating the simulation  ===========================
+
+    if network_reconfig 
+        topology_choice = Bilevel.ReconfigAllowed()
+    else 
+        topology_choice = Bilevel.OneConfig()
+    end
+
+    formulation = Bilevel.Formulation(  
+                                        powerflow = Bilevel.BFM(),
+                                        topology_choice = topology_choice,
+                                        graph_type = Bilevel.Undirected(),
+                                        radiality = Bilevel.MultiCommodityFlow(),
+                                        convexity = Bilevel.Convex(),
+                                        v_constraints = Bilevel.StrongVoltages(),
+                                        i_constraints = Bilevel.RelaxedCurrents()
+                                    )
+
+    nb_sign_days = length(PROFILE_PATHS)
+    simulation   = Bilevel.Simulation(
+                                        network, 
+                                        network_topology, 
+                                        DSO_costs, 
+                                        User_costs, 
+                                        nb_sign_days, 
+                                        bilevel, 
+                                        storage, 
+                                        formulation)
+
+    # =========================== Solving the model  ===========================
+    failure = false
+    result = nothing
+    try
+        model = Bilevel.build_model(simulation; set_names=true)
+        return_value = Bilevel.solve_model(model, formulation.powerflow)
+        result = Bilevel.printed_tables(model)
+    catch
+        failure = true
+        result =  ["failure", ""]
+    end
+
+    param_table = Vector()
+    push!(param_table, param_keys)
+    push!(param_table, param_values)
+
+    XLSX_PATH = "/Users/manoncornet/Documents/University/TFE/Bilevel_DNEP/src/simulation_output/sensitivity_analysis_" * (Dates.format(now(), "yyyy-mm-dd")) * ".xlsx"
+
+    isfile(XLSX_PATH) ? mode = "rw" : mode = "w"
+
+    XLSX.openxlsx(XLSX_PATH, mode = mode) do xf
+        mode == "rw" && XLSX.addsheet!(xf)
+        sheet_names = XLSX.sheetnames(xf)
+        current_sheet = sheet_names[end]
+        current_working_sheet = xf[current_sheet]
+        XLSX.writetable!(current_working_sheet, param_table, ["", ""])
+        df = DataFrame(result[2:end, :], result[1, :])
+        df = permutedims(df, 1)
+        XLSX.writetable!(current_working_sheet, df, anchor_cell=XLSX.CellRef("D1"))
+    end
+
+    if !failure
+        # -- PRINTING THE NETWORK AT EACH TIME STEP --
+        dir = "/Users/manoncornet/Documents/University/TFE/Bilevel_DNEP/src/simulation_output/" 
+        for t in 1:model[:time_steps]
+            filename = (Dates.format(now(), "yyyy-mm-dd")) * "network_graph_time_step_$t"
+            filename = isfile(filename) ? filename * "/" : filename
+            Bilevel.print_network_tikz(model[:network_data], t, 5, 5; 
+            dir=dir, filename=parsed_args["network_graph_name"] * "_timestep_$t", reshape=true)
+        end
+
+        # -- DIFFERENT PLOTS RESULTING FROM A SIMULATION --
+
+    end
+
+    # -- Run a simulation of the model --
+    # 
+    # this call to the function automatically updates the structures 
+    #load_profiles = hcat([b.load_profile.time_serie for b in network.load_buses]...)
+    #print_load_profiles(joinpath( plot_dir, "test.pdf"), 
+    #                    base_load_profiles, 
+    #                    load_profiles;
+    #                    base_granularity=5, 
+    #                    delta_t=delta_t, 
+    #                    EV=EV, 
+    #                    EHP=EHP)
+
+    #PV_profiles = hcat([b.PV_installation.profile.time_serie for b in network.load_buses]...)
+    #print_PV_profiles(joinpath( plot_dir, "PV_profiles.pdf"), PV_profiles;
+    #                    delta_t=delta_t, id_profiles=ids_profiles[1])
+    # Test for PV profiles 
 end
-# # =========================== Costs definition  ===========================
 
-formulation = Bilevel.Formulation(  powerflow = Bilevel.BFM(),
-                            topology_choice = Bilevel.OneConfig(),
-                            graph_type = Bilevel.Undirected(),
-                            radiality = Bilevel.SingleCommodityFlow(),
-                            convexity = Bilevel.Convex(),
-                            v_constraints = Bilevel.StrongVoltages(),
-                            i_constraints = Bilevel.StrongCurrents())
-
-
-# struct UserCosts
-#     PV::Float64             # PV capacity cost in [€/kWc]
-#     PV_conv::Float64        # PV converter cost in 
-#     storage::Float64
-#     EI::Float64             # energy imported [€/kWh]
-#     EE::Float64             # energy exported [€/kWh]
-#     DSOEI::Float64          # DSO energy imported cost [€/kWh]
-#     DSOEE::Float64          # DSO energy exported cost [€/kWh]
-#     GCC::Float64            # grid connection cost [€/kVA/year]
-#     amortization_PV::Int64  # amortization period of pv panels
-#     amortization_PVC::Int64 # amortization periof of pv converters
-#     amortization_storage::Int64
-#     money_basis::Float64    # money basis in k€
-#     WEIGHT_OBJ::Float64
-# end
-                                                       
-DSO_costs  = DSOCosts(substation_cost, 0.7 * EIC, amort_DSO, interest_rate_DSO, weight_I, weight_V, money_basis, weight_obj1)
-User_costs = UserCosts(PV_cost, PV_conv_cost, storage_cost, EIC, EEC, DSOEC, DSOEC, GCC, amort_PV, amort_PV_conv, amort_storage, money_basis, weight_obj2)
-
-# # =========================== Model  ===========================
-# # -- Running the model -- 
-nb_sign_days = length(PROFILE_PATHS)
-simulation  = Bilevel.Simulation(network, network_topology, DSO_costs, User_costs, nb_sign_days, bilevel, storage, formulation)
-
-# model = Bilevel.build_model(simulation; set_names=true)
-
-
-# model = Bilevel.build_model(simulation; formulation=formulation, set_names=true)
-#objective, time = Bilevel.solve_model(model, formulation.powerflow)
-
-#println(objective)
-#println(var_values)
-#println(time)
-#display(all_variables(upper_model))
-
-
-# -- Run a simulation of the model --
-# 
-# this call to the function automatically updates the structures 
-#load_profiles = hcat([b.load_profile.time_serie for b in network.load_buses]...)
-#print_load_profiles(joinpath( plot_dir, "test.pdf"), 
-#                    base_load_profiles, 
-#                    load_profiles;
-#                    base_granularity=5, 
-#                    delta_t=delta_t, 
-#                    EV=EV, 
-#                    EHP=EHP)
-
-#PV_profiles = hcat([b.PV_installation.profile.time_serie for b in network.load_buses]...)
-#print_PV_profiles(joinpath( plot_dir, "PV_profiles.pdf"), PV_profiles;
-#                    delta_t=delta_t, id_profiles=ids_profiles[1])
-# Test for PV profiles 
-
-
-#main()
+main()

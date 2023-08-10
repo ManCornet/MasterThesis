@@ -9,7 +9,7 @@
 function print_initial_network(network, x_scale, y_scale;
                    dir=pwd(),
                    filename="graph",
-                   display=true, reshape=false)
+                   display=false, reshape=false)
 
     # Let's insert some boilerplate styling
     # and necessary preamble/postamble
@@ -235,56 +235,87 @@ function if_small(x)
     return x #round.(x, digits=6)
 end
 
-function plot_results(model::JuMP.AbstractModel; thesis_dir=pwd(), pgfplot=true)
+function plot_results(model::JuMP.AbstractModel; dir=pwd(), filename="plot", pgfplot=true)
 
     colors = ["#096F7B", "#FF8D3E","#842600"]
 
     network = model[:network_data]
     buses = network.buses
     T = model[:time_steps]
+    L = get_nb_lines
     Ns = get_nb_substations(network)
     Nu = get_nb_loads(network)
+    K = get_nb_conductors(network)
     BASE_POWER = network.pu_basis.base_power
+    BASE_CURRENT = network.pu_basis.base_current
 
     P_consumed = [buses[Ns + i].load_profile.time_serie[t] * buses[Ns+i].cos_phi * BASE_POWER  for t in 1:T, i in 1:Nu] 
     PV_prod = [buses[Ns + i].PV_installation.profile.time_serie[t] * BASE_POWER  for t in 1:T, i in 1:Nu]
 
+    # PV understanding
     for u in 1:Nu
-        filename = "user@bus$(Ns+u)"
+        current_filename = filename * "pv_bus_$(Ns+u)"
         pgfplot && Plots.pgfplotsx()
-        fig = Plots.plot(title="Bus $(u)", ylabel="Power [MW]", tex_output_standalone = false, legend = :topleft)
+        fig = Plots.plot(xlabel="Time Steps", ylabel="Power [MW]", tex_output_standalone = false, legend = :topleft)
 
-        plot!(fig, 1:T, P_consumed[:, u], label="P_cons", color=colors[i])
-        plot!(fig, 1:T, [value.(model[:p_pv_max])[u] for t in 1:T], label="P_pv_max")
-        plot!(fig, 1:T, value.(model[:p_pv])[:, u], label="P_pv")
-        plot!(fig, 1:T, PV_prod[:, u] * value.(model[:p_pv_max])[u], label="PV_prod max")
-        plot!(fig, 1:T, value.(model[:p_exp])[:, u], label="P_exp")
+        plot!(fig, 1:T, P_consumed[:, u], label=L"$P_{D}$", color=colors[1], linewidth=1.3)
+        plot!(fig, 1:T, [value.(model[:p_pv_max])[u] for t in 1:T], label=L"$p_{PV}^{capa}}$", color=colors[2], linewidth=1.3, linestyle=:dash)
+        plot!(fig, 1:T, value.(model[:p_pv])[:, u], label=L"$p_{PV}$", color=colors[i+1], linewidth=1.3, color=colors[2], linealpha=0.6, linestyle=:solid)
+        plot!(fig, 1:T, PV_prod[:, u] * value.(model[:p_pv_max])[u], label="\overbar{p_{PV}}", linewidth=1.3, color=colors[2], linealpha=0.8, linestyle= :dashdot)
+        plot!(fig, 1:T, value.(model[:p_exp])[:, u], label=L"$p_{exp}$", linewidth=1.3, color=colors[3])
 
-        pgfplot && Plots.savefig(fig, joinpath(thesis_dir, "$filename.tikz"))
-        Plots.savefig(fig, joinpath(thesis_dir, "$filename.pdf"))
+        pgfplot && Plots.savefig(fig, joinpath(dir, "$current_filename.tikz"))
+        Plots.savefig(fig, joinpath(dir, "$current_filename.pdf"))
     end
 
+    # Plot currents
+    for l in 1:L
+        current_filename = filename * "current_line_$(l)"
+        pgfplot && Plots.pgfplotsx()
+        fig = Plots.plot(xlabel="Time Steps", ylabel="Current [kA]", tex_output_standalone = false, legend = :topleft)
+        chosen_cond_index = findfirst(i -> isapprox(i, 1; rtol=1e-4), value.(model[:Alpha])[l, :])
+        if isnothing(chosen_cond_index)
+            continue
+        end
+        plot!(fig, 1:T, sqrt.(if_small(value.(model[:I_sqr])[l, :])) * BASE_CURRENT, label=L"$|I|$", title="Line $(l)", linewidth=1.3, color=colors[1])
+        plot!(fig, 1:T, network.conductors[chosen_cond_index].max_i * BASE_CURRENT * ones(T), label=L"$|\overbar{I}|$", linewidth=1.3, color=colors[2], linestyle=:dash)
 
-#     # print network
-#     for t in 1:T
-#         Bilevel.print_network_tikz(model[:network_data], t, 4.5, 4.5; dir=thesis_dir, filename="network@timestep_$t")
-#     end
+        pgfplot && Plots.savefig(fig, joinpath(dir, "$current_filename.tikz"))
+        Plots.savefig(fig, joinpath(dir, "$current_filename.pdf"))
+    end
+
+    # Display the power for each conductor
+    for l in 1:L
+        current_filename = filename * "power_line_$(l)"
+        pgfplot && Plots.pgfplotsx()
+        fig = Plots.plot(xlabel="Time Steps", ylabel="Power [kA]", tex_output_standalone = false, legend = :topleft)
+       
+        chosen_cond_index = findfirst(i -> isapprox(i, 1; rtol=1e-4), value.(model[:Alpha])[l, :])
+        title = isnothing(chosen_cond_index) ? "Line $l is not built" : "Line $l is built with conductor $chosen_cond_index"
+        for k in 1:K
+            plot!(plt, p.T, sqrt.(if_small(value.(model[:I_sqr_k])[l, k, :])) * BASE_CURRENT, label="I_ij_$k [kA]", title=title)
+        end
+        plot!(plt, p.T, sum(sqrt.(if_small(value.(model[:I_sqr_k])[l, :, :])) * BASE_CURRENT, dims=1)', label="I_ij [kA]")
+        
+        pgfplot && Plots.savefig(fig, joinpath(dir, "$current_filename.tikz"))
+        Plots.savefig(fig, joinpath(dir, "$current_filename.pdf"))
+    end
+
+    # Check voltage limits
+    for i in 1:(Ns+Nu)
+        current_filename = filename * "power_line_$(l)"
+        pgfplot && Plots.pgfplotsx()
+        fig = Plots.plot(xlabel="Time Steps", ylabel="Power [kA]", tex_output_standalone = false, legend = :topleft)
+
+        plot!(fig, 1:T, sqrt.(value.(model[:V_sqr])[i, :]), label="V [p.u.]", title="Bus $(i)")
+        plot!(fig, 1:T, p.T, p.MIN_VOLTAGE * ones(p.T_SIZE), label="MIN_VOLTAGE [p.u.]")
+        plot!(fig, 1:T, p.T, p.MAX_VOLTAGE * ones(p.T_SIZE), label="MAX_VOLTAGE [p.u.]")
+
+        pgfplot && Plots.savefig(fig, joinpath(dir, "$current_filename.tikz"))
+        Plots.savefig(fig, joinpath(dir, "$current_filename.pdf"))
+    end
+end
  
-
-#     # Plot currents
-#     for l in 1:L
-#         filename = "current@line$(l)"
-#         pgfplot && Plots.pgfplotsx()
-#         fig = Plots.plot(title="Line $(l)", ylabel="Power [MW]", tex_output_standalone = false, legend = :topleft)
-
-#         chosen_cond_index = findfirst(i -> isapprox(i, 1; rtol=1e-4), value.(model[:Alpha])[l, :])
-#         if isnothing(chosen_cond_index)
-#             continue
-#         end
-#         plot!(p.T, sqrt.(if_small(value.(model[:I_sqr])[l, :])) * p.BASE_CURRENT, label="I [kA]", title="Line $(l)")
-#         plot!(plt, p.T, p.MAX_CURRENT[l, chosen_cond_index] * p.BASE_CURRENT * ones(p.T_SIZE), label="MAX_CURRENT [kA]")
-#         display(plt)
-#     end
 
 #     # Display the power for each conductor
 #     for l in p.L
@@ -361,14 +392,16 @@ function sig_round(x)
     return x
 end
 
+
 # -- PRINT CASE DESCRIPTION FUNCTION --
 #
 function print_case_description(model::JuMP.AbstractModel)
     
     # Fetch data
+    network         = model[:network_data]
     DELTA_T         = model[:delta_t]
     NB_PROFILES     = model[:nb_sign_days]
-    T   = model[:time_steps]  
+    T               = model[:time_steps]  
     bilevel         = model[:bilevel]
     Ns              = get_nb_substations(network)
     Nu              = get_nb_loads(network)
@@ -376,7 +409,7 @@ function print_case_description(model::JuMP.AbstractModel)
     buses           = network.buses
     BASE_POWER      = network.pu_basis.base_power
 
-    P_consumed = [buses[Ns + i].load_profile.time_serie[t]* buses[Ns + i].cos_phi for t in 1:T, i in 1:Nu]
+    P_consumed = [buses[Ns + i].load_profile.time_serie[t] * buses[Ns + i].cos_phi for t in 1:T, i in 1:Nu]
     
     # 1. Peak load demand
     peak_demand = maximum(sum(P_consumed, dims=2)) * BASE_POWER
@@ -546,10 +579,136 @@ function print_grid_results(model; latex=false)
     return vcat([i[j] for i in kpis_header, j in 1:length(kpis_header[1])], kpis)
 end
 
-# seems okay: to verify !!
+# -- PRINT PV GLOBAL RESULTS FUNCTION --
+#
+function print_pv_results(model; latex=false)
+    DAYS_A_YEAR = 365
+    DELTA_T = model[:delta_t]
+    NB_PROFILES = model[:nb_sign_days]
+    MULTIPLIER = DELTA_T/60 * DAYS_A_YEAR / NB_PROFILES
+    network = model[:network_data]
+    BASE_POWER = network.pu_basis.base_power
+    T = model[:time_steps]
+    Nu = get_nb_loads(network)
+    Ns = get_nb_substations(network)
+    buses = network.buses 
+
+    # ----- 1. PV installed capacity -----
+    PV_capa = sum(value.(model[:p_pv_max]))
+
+    # ----- 2. PV penetration -----
+    # = amount of PV capacity installed in a grid with respect to the peak load demand
+    #  It is commonly defined as either (1) the ratio of the PV installed capacity with respect to the peak load demand, or (2) the ratio of the total energy produced by PV with respect to the total energy consumed.
+
+    P_consumed = [buses[Ns + i].load_profile.time_serie[t] * buses[Ns + i].cos_phi for t in 1:T, i in 1:Nu]
+    energy_consumed = sum(P_consumed) * BASE_POWER * MULTIPLIER
+
+    peak_demand = maximum(sum(P_consumed, dims=2)) * BASE_POWER
+
+    # (1) First definition
+    PV_penetration_power = PV_capa / peak_demand
+
+    # (2) Second definition
+    PV_penetration_energy = sum(value.(model[:p_pv])) * MULTIPLIER/energy_consumed 
+
+    # ----- 3. Energy produced by PV -----
+    PV_energy = sum(value.(model[:p_pv])) * MULTIPLIER
+
+    # ----- 4. Global PV potential -----
+   
+    PV_prod = [(isnothing(buses[Ns + i].PV_installation) ? 0.0 : buses[Ns + i].PV_installation.profile.time_serie[t]) for t in 1:T, i in 1:Nu]
+
+    PV_potential = sum(PV_prod[t, i] * value(model[:p_pv_max][i] * BASE_POWER) for t in 1:T, i in 1:Nu) * MULTIPLIER
+
+    # ----- 5. Mean Self-Sufficiency/Day/user -----
+
+    user_ss = ["Mean Self Sufficiency User $u" for u in 1:Nu]
+    user_sc = ["Mean Self Consumption User $u" for u in 1:Nu]
+    user_pr = ["Mean Production Ratio User $u" for u in 1:Nu]
+
+    mean_user_self_sufficiency = zeros(Float64, Nu)
+    mean_user_self_consumption = zeros(Float64, Nu)
+    mean_user_production_ratio = zeros(Float64, Nu)
+    for u in 1:Nu    
+        nb_non_zeros = 0    
+        for t in 1:T
+            mean_user_self_sufficiency[u] += (value.(model[:p_pv])[t, u] * DELTA_T/60 - value.(model[:p_exp])[t, u] * DELTA_T/60)/(P_consumed[t, u] * DELTA_T/60) / (model[:nb_sign_days] * T)
+
+            if PV_prod[t, u] != 0
+                mean_user_self_consumption[u] += (value.(model[:p_pv])[t, u] * DELTA_T/60 - value.(model[:p_exp])[t, u] * DELTA_T/60)/(value.(model[:p_pv])[t, u] * DELTA_T/60) / (model[:nb_sign_days])
+
+                mean_user_production_ratio[u] += (value.(model[:p_pv])[t, u] * DELTA_T/60)/(PV_prod[t, u] * value(model[:p_pv_max][u])* DELTA_T/60)/ (model[:nb_sign_days])
+
+                nb_non_zeros += 1
+            end
+        end
+        mean_user_self_consumption[u] /= nb_non_zeros
+        mean_user_production_ratio[u] /= nb_non_zeros
+    end
+
+    # ----- 5. Global Mean Self-Sufficiency/Day -----
+    mean_global_self_sufficiency = sum(mean_user_self_sufficiency ./length(mean_user_self_sufficiency))
+    mean_global_self_consumption = sum(mean_user_self_consumption ./length(mean_user_self_consumption))
+    mean_global_production_ratio = sum(mean_user_production_ratio ./length(mean_user_production_ratio))
+    # for day in 1:model[:nb_sign_days]
+    #     idx_first = Int((day - 1) * T / model[:nb_sign_days] + 1)
+    #     idx_last = Int(day * T / model[:nb_sign_days])
+
+    #     mean_global_self_suffiency += (sum(value.(model[:p_pv])[idx_first:idx_last, :]) - sum(value.(model[:p_exp])[idx_first:idx_last, :]))/(sum(P_consumed[idx_first:idx_last, :]) / model[:nb_sign_days])
+
+    #     mean_global_self_consumption += (sum(value.(model[:p_pv])[idx_first:idx_last, :]) - sum(value.(model[:p_exp])[idx_first:idx_last, :]))/(sum(value.(model[:p_pv])[idx_first:idx_last, :]) / model[:nb_sign_days])
+
+    #     mean_global_production_ratio += sum(value.(model[:p_pv])[idx_first:idx_last, :])/(sum(PV_prod[idx_first:idx_last, :] .* value.(model[:p_pv_max])) / model[:nb_sign_days])
+    # end
+
+    # global_self_sufficiency = (sum(value.(model[:p_pv])) - sum(value.(model[:p_exp])))/sum(P_consumed) 
+    # global_self_consumption = (sum(value.(model[:p_pv])) - sum(value.(model[:p_exp])))/sum(value.(model[:p_pv]))
+
+    # ----- 6. Production ratio -----
+    #global_production_ratio = sum(value.(model[:p_pv])) / PV_potential
+
+    # ----- 7. PV costs-----
+    User_costs = model[:User_costs]
+    pv_costs   = value(sum(model[:s_conv_pv])) * BASE_POWER * User_costs.PV_conv / 
+            User_costs.amortization_PVC + value(sum(model[:p_pv_max])) * BASE_POWER * User_costs.PV / User_costs.amortization_PV
+
+    # ----- 8. PV production -----
+    PV_power_prod = sum(value.(model[:p_pv])) #* MULTIPLIER
+    LCOE_pv = pv_costs / PV_energy
+
+    kpis_header = (
+        [
+            ["PV capacity", "PV penetration (v1)", "PV penetration (v2)", "PV energy", "PV potential", "Mean Global Self sufficiency/day", "Mean Global Self Consumption/day", "Mean Global Production ratio", "LCOE pv"]
+            ; user_ss; user_sc; user_pr
+        ],
+        [["MVA", "%/year", "%/year", "MWh/year", "MWh/year", "average, [%]", "average, [%]", "average, [%]", "kEUR/MWh"]; fill("%",3*Nu)])
+
+    
+    kpis = reshape(string.(
+            sig_round(
+            [
+                [PV_capa, PV_penetration_power, PV_penetration_energy, PV_energy, PV_potential, mean_global_self_sufficiency, mean_global_self_consumption, mean_global_production_ratio, LCOE_pv]; 
+                mean_user_self_sufficiency; 
+                mean_user_self_consumption; 
+                mean_user_production_ratio
+            ])), 1, :)
+
+    println(kpis)
+
+    if latex
+        pretty_table(kpis, header=kpis_header, backend=Val(:latex))
+    else
+        pretty_table(kpis, header=kpis_header)
+    end
+    # returns the table as a Matrix
+    return vcat([i[j] for i in kpis_header, j in 1:length(kpis_header[1])], kpis)
+end
+
+# -- PRINT STORAGE RESULTS FUNCTION --
+#
 function print_storage_results(model; latex=true)
     network = model[:network_data]
-    Nu = get_nb_loads(network)
+    Nu      = get_nb_loads(network)
 
     # storage capacity
     storage_capacity = value(sum(model[:storage_capacity])) / Nu
@@ -568,71 +727,78 @@ function print_storage_results(model; latex=true)
     return vcat([i[j] for i in kpis_header, j in 1:length(kpis_header[1])], kpis)
 end
 
+# -- PRINT SUMMARY RESULTS FUNCTION --
+#
+function print_summary(model; latex=false)
+    DSO_costs = model[:DSO_costs]
+    T = model[:time_steps]
+    network = model[:network_data]
+    Nu = get_nb_loads(network)
+    Ns = get_nb_substations(network)
+    DELTA_T = model[:delta_t]
+
+    DSO_capex = value(model[:DSO_fixed_costs]) / DSO_costs.amortization / 1000
+    DSO_opex = value(model[:DSO_loss_costs])
+    PV_costs = value(sum(model[:PV_costs])) / 1000
+    grid_costs = value(sum(model[:grid_costs])) / 1000
+    net_energy_costs = (value(sum(model[:energy_costs])) - value(sum(model[:energy_revenues]))) / 1000
+
+    buses = network.buses
+    P_consumed = [buses[Ns + i].load_profile.time_serie[t] * buses[Ns + i].cos_phi for t in 1:T, i in 1:Nu]
+    PV_prod = [(isnothing(buses[Ns + i].PV_installation) ? 0.0 : buses[Ns + i].PV_installation.profile.time_serie[t]) for t in 1:T, i in 1:Nu]
 
 
-# NOT OKAY !!!!! TO WORK
-# function print_pv_results(p, model; latex=true)
-#     DAYS_A_YEAR = 365
-#     DELTA_T = model[:delta_t]
-#     NB_PROFILES = model[:nb_sign_days]
-#     MULTIPLIER = DELTA_T/60 * DAYS_A_YEAR / NB_PROFILES
+    mean_user_self_sufficiency = zeros(Float64, Nu)
+    mean_user_self_consumption = zeros(Float64, Nu)
+    for u in 1:Nu   
+        nb_non_zeros = 0     
+        for t in 1:T
+            mean_user_self_sufficiency[u] += (value.(model[:p_pv])[t, u] * DELTA_T/60 - value.(model[:p_exp])[t, u] * DELTA_T/60)/(P_consumed[t, u] * DELTA_T/60) / (model[:nb_sign_days] * T)
 
-#     # PV penetration
-#     PV_penetration = sum(value.(model[:p_pv_max]))
+            if value.(model[:p_pv])[t, u] != 0
+                mean_user_self_consumption[u] += (value.(model[:p_pv])[t, u] * DELTA_T/60 - value.(model[:p_exp])[t, u] * DELTA_T/60)/(value.(model[:p_pv])[t, u] * DELTA_T/60) / (model[:nb_sign_days])
+                nb_non_zeros += 1
+            end
+        end
+        mean_user_self_consumption[u] /= nb_non_zeros
+    end
 
-#     # PV energy
-#     PV_energy = sum(value.(model[:p_pv])) * MULTIPLIER / PV_penetration # percentage
+    # ----- 5. Global Mean Self-Sufficiency/Day -----
+    self_sufficiency = sum(mean_user_self_sufficiency./length(mean_user_self_sufficiency))
+    self_consumption = sum(mean_user_self_consumption ./length(mean_user_self_consumption))
+    kpis_header = (["CAPEX", "OPEX", "UPVC", "UGCC", "UNEEC", "USS", "USC"],
+        ["M€/y", "k€/y", "M€/y", "M€/y", "M€/y", "%", "%"])
+    kpis = sig_round([DSO_capex DSO_opex PV_costs grid_costs net_energy_costs self_sufficiency self_consumption])
+    if latex
+        pretty_table(kpis, header=kpis_header, backend=Val(:latex))
+    else
+        pretty_table(kpis, header=kpis_header)
+    end
+    # returns the table as a Matrix
+    return vcat([i[j] for i in kpis_header, j in 1:length(kpis_header[1])], kpis)
+end
 
-#     # PV potential
-#     network = model[:network_data]
-#     Nu = get_nb_loads(network)
-#     Ns = get_nb_substations(network)
-#     T  = model[:time_steps]
-#     buses = network.buses 
-#     PV_prod = [(isnothing(buses[Ns + i].PV_installation) ? 0.0 : buses[Ns + i].PV_installation.profile.time_serie[t]) for t in 1:T, i in 1:Nu]
-
-#     PV_potential = sum(PV_prod[t, i] * value(model[:p_pv_max][i]) for i in 1:Nu, t in 1:T) * MULTIPLIER / PV_penetration
-
-#     # Self-sufficiency
-#     P_consumed = [buses[i].load_profile.time_serie[t] * buses[Ns + i].cos_phi for t in 1:T, i in 1:Nu]
-
-#     # Self-suffiency and self-consumption ? => ASK BERTRAND
-#     avg_self_sufficiency = 0
-#     avg_self_consumption = 0
-
-#     mean(value.(model[:p_pv]) .- value.(model[:p_exp]) ./ P_consumed)
-
-#     for t in 1:T
-#         avg_self_sufficiency += (value(sum(model[:p_pv][t, :])) - value(sum(model[:p_exp][t, :])))/(sum(P_consumed[t, :]))/T
-
-#         if value(model[:p_pv][t, i]) != 0
-#             avg_self_consumption += (value(sum(model[:p_pv][t, :])) - value(sum(model[:p_exp][t, :])))/value(model[:p_pv][t, i])/T
-#         end
-#     end
-    
-#     index_non_zeros = PV_potential .!= 0
-#     production_ratio = mean(value.(model[:p_pv][p.NU, :])[index_non_zeros] ./ PV_potential[index_non_zeros])
-
-#     potential_array = PV_prod .* value.(model[:p_pv_max])
-#     index_non_zeros = potential_array .!= 0
-
-#     production_ratio = mean(value.(model[:p_pv])[index_non_zeros] ./ potential_array[index_non_zeros])
-
-#     # PV_costs 
-#     User_costs = model[:User_costs]
-#     pv_cost = value(sum(model[:s_conv_pv])) * User_costs.PV_conv/ User_costs.amortization_PVC + value(sum(model[:p_pv_max])) * User_costs.PV / User_costs.amortization_PV
-
-#     # Pv prod
-#     pv_production = MULTIPLIER * sum(value.(model[:p_pv]))
-#     LCOE_pv = pv_cost / pv_production
-#     kpis_header = (["PV penetration", "PV production", "PV potential", "Avg self sufficiency", "Avg self consumption", "production ratio", "LCOE pv"],
-#         ["MVA", "MWh/MVA/year", "MWh/MVA/year", "average, [-]", "average, [-]", "average, [-]", "kEUR/MWh"])
-#     kpis = sig_round([PV_penetration PV_energy PV_potential avg_self_sufficiency self_consumption production_ratio LCOE_pv])
-#     if latex
-#         pretty_table(kpis, header=kpis_header, backend=Val(:latex))
-#     else
-#         pretty_table(kpis, header=kpis_header)
-#     end
-#     # returns the table as a Matrix
-#     return vcat([i[j] for i in kpis_header, j in 1:length(kpis_header[1])], kpis)
-# end
+# -- PRINTED TABLES FUNCTION --
+#
+function printed_tables(model; print_latex=false)
+    if model[:storage]
+        return hcat(
+            print_case_description(model),
+            print_network_results(model, latex=print_latex),
+            print_cost_results(model, latex=print_latex),
+            print_pv_results(model, latex=print_latex),
+            print_grid_results(model, latex=print_latex),
+            print_storage_results(model, latex=print_latex),
+            print_summary(model, latex=print_latex),
+        )
+    else 
+        return hcat(
+            print_case_description(model),
+            print_network_results(model, latex=print_latex),
+            print_cost_results(model, latex=print_latex),
+            print_pv_results(model, latex=print_latex),
+            print_grid_results(model, latex=print_latex),
+            print_summary(model, latex=print_latex),
+        )
+    end
+end

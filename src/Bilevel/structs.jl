@@ -12,22 +12,6 @@
 #   a simulation
 #
 # ============================================================================#
-#                                   Imports                                   #
-# ============================================================================#
-# using LaTeXStrings
-# using StructTypes, JSON3
-# using Plots
-
-# abstract type Device end abstract type to represent PV or storage
-#=
-mutable struct Battery <: Device
-    capa::Float64                  # in MVA
-    SOC::Union{Nothing, Vector{Float64}}
-    P::Union{Nothing, Vector{Float64}} # in MW, can be positive or negative
-    Q::Union{Nothing, Vector{Float64}} # in MVar
-end
-=#
-# ============================================================================#
 #                       Structures for physical parameters                    #
 # ============================================================================#
 
@@ -333,6 +317,9 @@ struct Simulation
         Ns            = network.nb_substations
         nb_time_steps = get_nb_time_steps(network.buses[Ns + 1].load_profile)
         delta_t       = network.buses[Ns + 1].load_profile.granularity
+
+        println(delta_t)
+        println(nb_time_steps)
 
         return new(network, network_topology, DSO_costs, User_costs, nb_sign_days, nb_time_steps, delta_t, bilevel, storage, formulation)
     end

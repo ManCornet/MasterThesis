@@ -276,18 +276,20 @@ function _add_PowerBalanceConstraints!( model::JuMP.AbstractModel,
                     )
 
     if isa(topology_choice, OneConfig)
+        Alpha = model[:Alpha]
         JuMP.@constraints(model, begin
-            [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Alpha[l, k] # indispensable
-            [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] >= -conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Alpha[l, k] # indispensable
-            [t=1:T, l=1:L, k=1:K], Q_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Alpha[l, k] # indispensable
-            [t=1:T, l=1:L, k=1:K], Q_ij_k[t, l, k] >= -conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Alpha[l, k] # indispensable
+            [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] <= 2*(conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max) * Alpha[l, k] # indispensable
+            [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] >= -2*(conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max) * Alpha[l, k] # indispensable
+            [t=1:T, l=1:L, k=1:K], Q_ij_k[t, l, k] <= 2*(conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max) * Alpha[l, k] # indispensable
+            [t=1:T, l=1:L, k=1:K], Q_ij_k[t, l, k] >= -2*(conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Alpha[l, k]) # indispensable
         end)
     elseif isa(topology_choice, ReconfigAllowed)
+        Gamma = model[:Gamma]
         JuMP.@constraints(model, begin
-            [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k] # indispensable
-            [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] >= -conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k]  # indispensable
-            [t=1:T, l=1:L, k=1:K], Q_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k]  # indispensable
-            [t=1:T, l=1:L, k=1:K], Q_ij_k[t, l, k] >= -conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k]  # indispensable
+            [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] <= 2* conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k] # indispensable
+            [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] >= - 2 * conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k]  # indispensable
+            [t=1:T, l=1:L, k=1:K], Q_ij_k[t, l, k] <= 2 * conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k]  # indispensable
+            [t=1:T, l=1:L, k=1:K], Q_ij_k[t, l, k] >= - 2* conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k]  # indispensable
         end)
     end
     
@@ -333,6 +335,7 @@ function _add_PowerBalanceConstraints!( model::JuMP.AbstractModel,
                     end)
 
     if isa(topology_choice, OneConfig)
+        Alpha = model[:Alpha]
         JuMP.@constraints(model, begin
             [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Alpha[l, k] # indispensable
             [t=1:T, l=1:L, k=1:K], P_ji_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Alpha[l, k] # indispensable
@@ -340,6 +343,7 @@ function _add_PowerBalanceConstraints!( model::JuMP.AbstractModel,
             [t=1:T, l=1:L, k=1:K], Q_ji_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Alpha[l, k] # indispensable
         end)
     elseif isa(topology_choice, ReconfigAllowed)
+        Gamma = model[:Gamma]
         JuMP.@constraints(model, begin
             [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k] # indispensable
             [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k]  # indispensable
@@ -364,16 +368,16 @@ function _add_RotatedConicConstraints!( model::JuMP.AbstractModel,
     lines = network_data.lines
 
     V_sqr = model[:V_sqr]
-    I_sqr_k = model[:I_sqr_k]
-    P_ij_k = model[:P_ij_k]
-    Q_ij_k = model[:Q_ij_k]
+    I_sqr = model[:I_sqr]
+    P_ij = model[:P_ij]
+    Q_ij = model[:Q_ij]
 
     JuMP.@constraint(model, 
                     [t=1:T, l=1:L],
                     [V_sqr[t, lines[l].edge.from_node.id] / 2; 
-                    sum(I_sqr_k[t, l, k] for k in 1:K); 
-                    sum(P_ij_k[t, l, k] for k in 1:K); 
-                    sum(Q_ij_k[t, l, k] for k in 1:K)] in 
+                    I_sqr[t, l]; 
+                    P_ij[t, l]; 
+                    Q_ij[t, l]] in 
                     JuMP.RotatedSecondOrderCone())
     return 
 end
@@ -395,9 +399,9 @@ function _add_RotatedConicConstraints!(model::JuMP.AbstractModel,
     JuMP.@constraint(model,
                     [t=1:T, l=1:L],
                     V_sqr[t, lines[l].edge.from_node.id] * 
-                    sum(I_sqr_k[t, l, k] for k in 1:K) == 
-                    sum(P_ij_k[t, l, k] for k in 1:K)^2 + 
-                    sum(Q_ij_k[t, l, k] for k in 1:K)^2)
+                    I_sqr[t, l] == 
+                    P_ij[t, l]^2 + 
+                    Q_ij[t, l]^2)
     return 
 end
 
@@ -618,7 +622,7 @@ end
 #                               Lower Level constraints                        #
 # ---------------------------------------------------------------------------- #
 # I AM HERE : ERROR WITH PV_PROD
-function _add_LowerConstraints!(model::JuMP.AbstractModel; storage::Bool=false)::Nothing
+function _add_LowerConstraints!(model::JuMP.AbstractModel)::Nothing
     network_data = model[:network_data]
     T  = model[:time_steps]
     Nu = network_data.nb_loads
@@ -644,7 +648,7 @@ function _add_LowerConstraints!(model::JuMP.AbstractModel; storage::Bool=false):
     # Power balance
     power_balance = JuMP.@expression(model, [t=1:T, i=1:Nu], P_consumed[t, i] - p_pv[t, i])
 
-    if storage 
+    if model[:storage]
         # Fetching the required data
         storage_capacity = model[:storage_capacity]
         storage_state = model[:storage_state]
@@ -834,6 +838,57 @@ function _add_RadialityConstraints!(model::JuMP.AbstractModel,
         JuMP.@constraints(model, begin
             [l=1:L, w=(Ns+1):N], k_ij[l, w] <= Y_send[l]
             [l=1:L, w=(Ns+1):N], k_ij[l, w] >= -Y_rec[l] 
+        end)
+    end
+
+    return
+end
+
+function _add_RadialityConstraints!(model::JuMP.AbstractModel, 
+                                    graph_type::TypeOfGraph,
+                                    ::ReconfigAllowed,
+                                    ::MultiCommodityFlow)::Nothing
+
+    Omega_sending = model[:network_topology].sending_lines
+    Omega_receiving = model[:network_topology].receiving_lines
+    network = model[:network_data]
+    T = model[:time_steps]
+    L = network.nb_lines
+    Ns_init = network.nb_init_subs
+    Ns = network.nb_substations
+    Nu = network.nb_loads
+    N = Ns + Nu
+    Beta = model[:Beta]
+    k_ij = model[:k_ij]
+
+
+    JuMP.@constraints(model, begin
+        [t=1:T, i=1:Ns, w=(Ns+1):N], - sum(k_ij[t, l, w] for l in Omega_receiving[i]) + 
+                    sum(k_ij[t, l, w] for l in Omega_sending[i]) >= 0
+        [t=1:T, i=1:Ns_init, w=(Ns+1):N], - sum(k_ij[t, l, w] for l in Omega_receiving[i]) +
+                        sum(k_ij[t, l, w] for l in Omega_sending[i]) <= 1
+        [t=1:T, i=(Ns_init+1):Ns, w=(Ns+1):N],  -  sum(k_ij[t, l, w] for l in Omega_receiving[i]) +
+                                sum(k_ij[t, l, w] for l in Omega_sending[i]) <= Beta[i]
+        [t=1:T, i=(Ns+1):N], - sum(k_ij[t, l, i] for l in Omega_receiving[i]) + 
+            sum(k_ij[t, l, i] for l in Omega_sending[i]) == -1
+        [t=1:T, i=(Ns+1):N, w=(Ns+1):N; i != w], - sum(k_ij[t, l, w] for l in Omega_receiving[i]) +
+                                sum(k_ij[t, l, w] for l in Omega_sending[i]) == 0
+    end)
+
+
+    if isa(graph_type, Undirected)
+        Y = model[:Y]
+        JuMP.@constraints(model, begin
+            [t=1:T, l=1:L, w=(Ns+1):N], k_ij[t, l, w] <= Y[t, l]
+            [t=1:T, l=1:L, w=(Ns+1):N], k_ij[t, l, w] >= -Y[t, l]
+    end)
+
+    elseif isa(graph_type, Directed)
+        Y_send = model[:Y_send]
+        Y_rec = model[:Y_rec]
+        JuMP.@constraints(model, begin
+            [t=1:T, l=1:L, w=(Ns+1):N], k_ij[t, l, w] <= Y_send[t, l]
+            [t=1:T, l=1:L, w=(Ns+1):N], k_ij[t, l, w] >= -Y_rec[t, l] 
         end)
     end
 

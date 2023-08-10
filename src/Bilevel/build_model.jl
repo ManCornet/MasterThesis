@@ -1,20 +1,6 @@
-# using Printf, Logging
-# import JuMP, Gurobi
-# include("../structs.jl")
-# include("./formulation/structs.jl")
-# include("./formulation/variables.jl")
-# include("./formulation/constraints.jl")
-# include("./formulation/objective.jl")
-
-
-
-# Remove for large models the ability to have names inside the model
-# look at the UnitCommitment.jl package
-
-
 
 function build_model(   simulation::Simulation;
-                        TimeLimit::Float64 = 600.0,
+                        TimeLimit::Float64 = 1200.0,
                         MIPGap::Float64 = 1e-2,
                         MIPFocus::Int64 = 1, 
                         set_names::Bool = false,
@@ -98,7 +84,7 @@ end
 
 function solve_model(model::JuMP.AbstractModel,
                     power_flow::PowerFlowFormulation;
-                    verbose=true)
+                    verbose=false)
 
     try 
         JuMP.optimize!(model)

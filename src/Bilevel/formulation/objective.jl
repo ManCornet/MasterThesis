@@ -28,10 +28,9 @@ function _set_Objective!(   model::JuMP.AbstractModel,
     if isa(c, RelaxedCurrents)
         I_violation = model[:I_violation]
         WEIGHT_I     = DSO_costs.WEIGHT_I 
-        JuMP.add_to_expression!(violations, 
-                                WEIGHT_I * MULTIPLIER,
-                                sum(I_violation[t, l, k] 
-                                for t in 1:T, l in 1:L, k in 1:K)
+        violations = @expression(upper, 
+                                    WEIGHT_I * MULTIPLIER * sum(I_violation[t, l, k] 
+                                    for t in 1:T, l in 1:L, k in 1:K)
                             )
     end
 
@@ -39,8 +38,8 @@ function _set_Objective!(   model::JuMP.AbstractModel,
         WEIGHT_V     = DSO_costs.WEIGHT_V
         V_violation_up  = model[:V_violation_up]
         V_violation_low = model[:V_violation_low]
-        JuMP.add_to_expression!(violations, 
-                                WEIGHT_V * MULTIPLIER,
+        violations = @expression(upper, 
+                                violations + WEIGHT_V * MULTIPLIER *
                                 sum(V_violation_up[t, l, k] + V_violation_low[t, l, k] 
                                 for t in 1:T, l in 1:L, k in 1:K)
                             )
