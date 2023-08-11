@@ -628,7 +628,6 @@ function _add_LowerConstraints!(model::JuMP.AbstractModel)::Nothing
     Nu = network_data.nb_loads
     Ns = network_data.nb_substations
     N = Ns + Nu
-    BASE_POWER = network_data.pu_basis.base_power
     buses = network_data.buses 
 
     PV_prod = [(isnothing(buses[Ns + i].PV_installation) ? 0.0 : buses[Ns + i].PV_installation.profile.time_serie[t]) for t in 1:T, i in 1:Nu]
@@ -652,30 +651,35 @@ function _add_LowerConstraints!(model::JuMP.AbstractModel)::Nothing
         # Fetching the required data
         storage_capacity = model[:storage_capacity]
         storage_state = model[:storage_state]
-        p_storage = model[:p_storage]
+        p_storage_charge = model[:p_storage_charge]
+        p_storage_discharge = model[:p_storage_discharge]
         NB_PROFILES = model[:nb_sign_days]
         STORAGE_EFF = [buses[i].storage.efficiency for i in Ns+1:N]
+        DELTA_T = model[:delta_t]
 
-        # Adding storage to bus power balance
-        power_balance = JuMP.@expression(model, [t=1:T, i=1:Nu], power_balance[t, i] + p_storage[t, i])
 
         # Storage constraints
-        @constraints(model, begin
-            [t=1:T, i=1:Nu], storage_state[t, i] <= storage_capacity[i]
-        end)
+        JuMP.@constraint(model, [t=1:T, i=1:Nu], p_imp[t, i] - p_exp[t, i] == P_consumed[t, i] - p_pv[t, i] + p_storage_charge[t, i] - p_storage_discharge[t, i])
+
+        @constraint(model,  [t=1:T, i=1:Nu], storage_state[t, i] <= storage_capacity[i])
+
         for season in 1:NB_PROFILES
             idx_first = Int((season - 1) * T / NB_PROFILES + 1)
             idx_last = Int(season * T  / NB_PROFILES)
+
             @constraints(model, begin
-                [t=idx_first+1:idx_last, i=1:Nu], storage_state[t, i] == storage_state[t-1, i] + p_storage[t, i] * STORAGE_EFF[i]
-                [i=1:Nu], storage_state[idx_first, i] == storage_state[idx_last, i] + p_storage[idx_first, i] * STORAGE_EFF[i]
+                [t=idx_first+1:idx_last, i=1:Nu], storage_state[t, i] == storage_state[t-1, i] + (p_storage_charge[t, i] * STORAGE_EFF[i] - (1/(STORAGE_EFF[i]- 0.05)) * p_storage_discharge[t, i]) * DELTA_T/60
+                # Boundary effects
+                [i=1:Nu], storage_state[idx_first, i] == 0.1*storage_capacity[i]
+                [i=1:Nu], storage_state[idx_first, i] == storage_state[idx_last, i] + (p_storage_charge[idx_first, i] * STORAGE_EFF[i] - (1/(STORAGE_EFF[i]- 0.05)) * p_storage_discharge[idx_first, i]) * DELTA_T/60
             end)
         end
-
+    else
+        JuMP.@constraint(model, [t=1:T, i=1:Nu], p_imp[t, i] - p_exp[t, i] == P_consumed[t, i] - p_pv[t, i])
     end
 
+    
     @constraints(model, begin
-        [t=1:T, i=1:Nu], p_imp[t, i] - p_exp[t, i] == power_balance[t, i]
         [t=1:T, i=1:Nu], q_imp[t, i] - q_exp[t, i] == Q_consumed[t, i]
         [t=1:T, i=1:Nu], p_imp[t, i] <= s_grid_max[i]
         [t=1:T, i=1:Nu], q_imp[t, i] <= s_grid_max[i]

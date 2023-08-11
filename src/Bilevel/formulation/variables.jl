@@ -54,12 +54,14 @@ function _add_BusVariables!(model::JuMP.AbstractModel)::Nothing
     if model[:storage] 
         JuMP.@variables(lower,   
             begin 
-            p_storage[1:T, 1:Nu]               # active power to storage device at time t, positive when the battery is charging
+            p_storage_charge[1:T, 1:Nu] >= 0               # active power to storage device at time t, positive when the battery is charging
+            p_storage_discharge[1:T, 1:Nu] >= 0             # active power to storage device at time t, positive when the battery is charging
             storage_state[1:T, 1:Nu] >= 0      # storage capacity
             storage_capacity[1:Nu] >= 0        # storage capacity
             storage_costs[1:Nu] >= 0           # Costs related to storage investment for each user
             end)
     end
+
 
     return
 end

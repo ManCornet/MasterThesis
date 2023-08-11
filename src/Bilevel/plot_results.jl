@@ -35,7 +35,7 @@ function print_initial_network(network, x_scale, y_scale;
     \\end{document}"""
  
     #style_sub = "rectangle, draw=Ulg_blue, fill=white, minimum size=1.5em, inner sep=1pt"
-    style_sub = "rectangle, draw, fill=white, minimum size=1.6em, inner sep=1pt"
+    style_sub = "rectangle, draw, fill=white, minimum size=1.5em, inner sep=1pt"
     style_load = "circle, draw, fill=white, minimum size=2em, inner sep=1pt"
 
     file_path = joinpath(dir ,"$filename.tex")
@@ -124,8 +124,8 @@ function print_network_tikz(network, time_step, x_scale, y_scale;
     \\end{tikzpicture}
     \\end{document}"""
  
-    style_sub = "rectangle, draw, fill=white, minimum size=1em, inner sep=1pt,  align=center, text width=0.6cm"
-    style_load = "circle, draw, fill=white, minimum size=1em, inner sep=1pt, align=center, text width=0.6cm"
+    style_sub = "rectangle, draw, fill=white, minimum size=1.7em, inner sep=1pt,  align=center, text width=0.6cm"
+    style_load = "circle, draw, fill=white, minimum size=1.2em, inner sep=1pt, align=center, text width=0.6cm"
     base_power = network.pu_basis.base_power
 
     # Creating the .tex file
@@ -179,33 +179,29 @@ function print_network_tikz(network, time_step, x_scale, y_scale;
                 end
             else 
                 P_cons = round(b.load_profile.time_serie[time_step] * b.cos_phi; digits = 2)
-                P_gen = isnothing(b.PV_installation) ? 0.0 : b.PV_installation.P[time_step]
-                P_gen = round(P_gen; digits=2)
-                P_stor = isnothing(b.storage) ? 0.0 : b.storage.P[time_step]
-                P_stor = round(P_gen; digits=2)
             
                 if isnothing(b.PV_installation)
-                    if isnothing(b.storage) 
-                        write(file,
-                        "    $n [x=$(x)cm, y=$(y)cm, as={\$\\scriptsize \$ \\color{Ulg_red} \\mathbf{$P_cons} \$}, $(style_load)];\n")
-                    else 
-                        P_stor = b.storage.P[time_step]
-                        P_stor = round(P_stor; digits=2)
-                        write(file,
-                        "    $n [x=$(x)cm, y=$(y)cm, as={\$\\mathcal{U}_{$nu}\$  \\vspace{-0.2em} \\scriptsize  \$ \\color{Ulg_orange} \\mathbf{$P_stor}\$ \\vspace{0.1em} \\scriptsize \$ \\color{Ulg_red} \\mathbf{$P_cons}\$}, $(style_load)];\n")
-                    end
+                    # if isnothing(b.storage) 
+                    write(file,
+                    "    $n [x=$(x)cm, y=$(y)cm, as={\$\\scriptsize \$ \\color{Ulg_red} \\mathbf{$P_cons} \$}, $(style_load)];\n")
+                    # else 
+                    #     P_stor_discharge = b.storage.P_discharge[time_step]
+                    #     P_stor_charge = b.storage.P_charge[time_step]
+                    #     write(file,
+                    #     "    $n [x=$(x)cm, y=$(y)cm, as={\$\\mathcal{U}_{$nu}\$  \\vspace{-0.2em} \\scriptsize  \$ \\color{Ulg_orange} \\mathbf{$P_stor_discharge}/\\mathbf{$P_stor_charge}\$ \\vspace{0.1em} \\scriptsize \$ \\color{Ulg_red} \\mathbf{$P_cons}\$}, $(style_load)];\n")
+                    # end
                 else 
                     P_gen = b.PV_installation.P[time_step]
                     P_gen = round(P_gen; digits=2)
-                    if isnothing(b.storage) 
-                        write(file,
-                        "    $n [x=$(x)cm, y=$(y)cm, as={\$\\mathcal{U}_{$nu}\$  \\vspace{-0.2em} \\scriptsize  \$ \\color{Ulg_blue} \\mathbf{$P_gen}\$ \\vspace{0.1em} \\scriptsize \$ \\color{Ulg_red} \\mathbf{$P_cons}\$}, $(style_load)];\n")
-                    else 
-                        P_stor = b.storage.P[time_step]
-                        P_stor = round(P_gen; digits=2)
-                        write(file,
-                        "    $n [x=$(x)cm, y=$(y)cm, as={\$\\mathcal{U}_{$nu}\$  \\vspace{-0.2em} \\scriptsize  \$ \\color{Ulg_blue} \\mathbf{$P_gen}\$ \\vspace{0.1em} \\scriptsize \$ \\color{Ulg_orange} \\mathbf{$P_stor}\$ \\vspace{0.1em} \\scriptsize \$ \\color{Ulg_red} \\mathbf{$P_cons}\$}, $(style_load)];\n")
-                    end
+                   
+                    write(file,
+                    "    $n [x=$(x)cm, y=$(y)cm, as={\$\\mathcal{U}_{$nu}\$  \\vspace{-0.2em} \\scriptsize  \$ \\color{Ulg_blue} \\mathbf{$P_gen}\$ \\vspace{0.1em} \\scriptsize \$ \\color{Ulg_red} \\mathbf{$P_cons}\$}, $(style_load)];\n")
+                    # else 
+                    #     P_stor_discharge = round(b.storage.P_discharge[time_step]; digits=2)
+                    #     P_stor_charge = round(b.storage.P_charge[time_step]; digits=2)
+                    #     write(file,
+                    #     "    $n [x=$(x)cm, y=$(y)cm, as={\$\\mathcal{U}_{$nu}\$  \\vspace{-0.2em} \\scriptsize  \$ \\color{Ulg_blue} \\mathbf{$P_gen}\$ \\vspace{0.1em} \\scriptsize\$ \\color{Ulg_orange} \\mathbf{$P_stor_discharge}/\\mathbf{$P_stor_charge}\$ \\vspace{0.1em} \\scriptsize \$ \\color{Ulg_red} \\mathbf{$P_cons}\$}, $(style_load)];\n")
+                    # end
                 end
             end
         end
@@ -222,16 +218,16 @@ function print_network_tikz(network, time_step, x_scale, y_scale;
               
                 if l.conductor.name == "Poppy"
                     write(file,
-                    "    $(i) ->[\"$(round(p, digits=2))\"] $(j);\n")
+                    "    $(i) ->[\"$(round(p, sigdigits=2))\"] $(j);\n")
                 elseif l.conductor.name == "Oxlip"
                     write(file,
-                    "    $(i) ->[\"$(round(p, digits=2))\", thick] $(j);\n")
+                    "    $(i) ->[\"$(round(p, sigdigits=2))\", thick] $(j);\n")
                 elseif l.conductor.name == "Daisy"
                     write(file,
-                    "    $(i) ->[\"$(round(p, digits=2))\", very thick] $(j);\n")
+                    "    $(i) ->[\"$(round(p, sigdigits=2))\", very thick] $(j);\n")
                 elseif l.conductor.name == "Tulip"
                     write(file,
-                    "    $(i) ->[\"$(round(p, digits=2))\", ultra thick] $(j);\n")
+                    "    $(i) ->[\"$(round(p, sigdigits=2))\", ultra thick] $(j);\n")
                 end
                 print(l.conductor.name)
             else 
@@ -405,20 +401,26 @@ function plot_results(model::JuMP.AbstractModel; dir=pwd(), filename="plot", pgf
         for i in 1:Nu
             current_filename = filename * "storage_bus_$(Ns + i)"
             #pgfplot && Plots.pgfplotsx()
-            fig = Plots.plot(xlabel="Time Steps", ylabel="Power [MW]", tex_output_standalone = false, legend = :best, tickfontsize=10,formatter=:latex)
+            fig = Plots.plot(xlabel="Time Steps", ylabel="Energy [MWh]", tex_output_standalone = false, legend =:topleft, tickfontsize=10,formatter=:latex)
 
-            Plots.plot!(fig, time, value.(model[:p_storage])[:, i], label=L"p_{st}", linewidth=1.5, color=colors[1])
+            Plots.plot!(fig, time, value.(model[:p_storage_charge])[:, i] .* DELTA_T/60, label=L"e_{st}^+", linewidth=1.5, color=colors[1])
 
-            Plots.plot!(fig, time, value.(model[:storage_state])[:, i], label=L"SOC", color=colors[3], linewidth=1.5,)
 
-            Plots.hline!(fig, [value(model[:storage_capacity][i])], label=L"p_{st,capa}", color=colors[5], linestyle=:dash, linewidth=1.5,)
-            summer_check = round.([value(model[:storage_state][1, i]) value(model[:storage_state][24, i])+ value(model[:p_storage][1, i])* buses[Ns+i].storage.efficiency], sigdigits=2)
-            winter_check = round.([value(model[:storage_state][25, i]) value(model[:storage_state][48, i])+value(model[:p_storage][25, i])* p.STORAGE_EFF], sigdigits=2)
-            Plots.annotate!(12, 0.9 * value(model[:storage_capacity][i]), "$(summer_check[1]) ?= $(summer_check[2])")
-            Plots.annotate!(36, 0.9 * value(model[:storage_capacity][i]), "$(winter_check[1]) ?= $(winter_check[2])")
+            Plots.plot!(fig, time, value.(model[:p_storage_discharge])[:, i] .* DELTA_T/60, label=L"e_{st}^-", linewidth=1.5, color=colors[3])
+
+            Plots.plot!(fig, time, value.(model[:p_pv])[:, i] .* DELTA_T/60, label=L"e_{PV}^-", linewidth=1.5, color=colors[4])
+
+            Plots.plot!(fig, time, value.(model[:storage_state])[:, i], label=L"SOC", color=colors[5], linewidth=1.5)
+
+            Plots.hline!(fig, [value(model[:storage_capacity][i])], label=L"e_{st,capa}", color=colors[7], linestyle=:dash, linewidth=1.5)
+
+            # summer_check = round.([value(model[:storage_state][1, i]) value(model[:storage_state][24, i])+ value(model[:p_storage][1, i])* buses[Ns+i].storage.efficiency], sigdigits=2)
+            # winter_check = round.([value(model[:storage_state][25, i]) value(model[:storage_state][48, i])+value(model[:p_storage][25, i])* p.STORAGE_EFF], sigdigits=2)
+            # Plots.annotate!(12, 0.9 * value(model[:storage_capacity][i]), "$(summer_check[1]) ?= $(summer_check[2])")
+            # Plots.annotate!(36, 0.9 * value(model[:storage_capacity][i]), "$(winter_check[1]) ?= $(winter_check[2])")
             # ramping_max : fraction of the battery (dis)charged on 1 hour
-            ramping_max=round(maximum(abs.(diff([value.(model[:storage_state][1:24, i]) value.(model[:storage_state][25:48, i])], dims=2))), sigdigits=2)
-            Plots.annotate!(24, 0.7 * value(model[:storage_capacity][i]), "Ramping max $(ramping_max)/h")
+            # ramping_max=round(maximum(abs.(diff([value.(model[:storage_state][1:24, i]) value.(model[:storage_state][25:48, i])], dims=2))), sigdigits=2)
+            # Plots.annotate!(24, 0.7 * value(model[:storage_capacity][i]), "Ramping max $(ramping_max)/h")
             #pgfplot && Plots.savefig(fig, joinpath(dir, "$current_filename.tikz"))
             Plots.savefig(fig, joinpath(dir, "$current_filename.pdf"))
         end

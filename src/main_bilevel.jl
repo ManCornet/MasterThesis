@@ -80,7 +80,7 @@ function parse_commandline(;as_symbols::Bool=false)
         "--PP"
             help = "Load peak power"
             arg_type = Float64
-            default = 0.5 # 7.0 by default change that !!!
+            default = 7.0 # 7.0 CHANGE THAT AFTER
 
         "--EV"
             help = "EVs taken into account in residential consumption profiles [-]"
@@ -106,7 +106,7 @@ function parse_commandline(;as_symbols::Bool=false)
         "--Storage_eff"
             help = "Storage efficiency in [0, 1]"
             arg_type = Float64
-            default = 0.98
+            default = 0.9
 
         "--Storage_cost"
             help = "Storage cost"
@@ -276,8 +276,8 @@ function main()
     # -- Loading the excel file containing the network topology --
 
     # Add choice for the test network
-    #NETWORK_PATH = joinpath(network_data_dir, "network_Nahman_Peric_2S23H.xlsx") 
-    NETWORK_PATH = joinpath(network_data_dir, "model_2S2H.xlsx") 
+    NETWORK_PATH = joinpath(network_data_dir, "network_Nahman_Peric_2S23H.xlsx") 
+    #NETWORK_PATH = joinpath(network_data_dir, "model_2S2H.xlsx") 
     pu_basis = define_pu_basis()
 
     # -- Fetching the network data --
@@ -468,7 +468,8 @@ function main()
         model = Bilevel.build_model(simulation; set_names=true)
         return_value = Bilevel.solve_model(model, formulation.powerflow)
         result = Bilevel.printed_tables(model)
-    catch
+    catch e
+        print(e)
         failure = true
         result =  ["failure", ""]
     end
@@ -507,8 +508,8 @@ function main()
         !isdir(network_plot_path) && mkdir(network_plot_path)
        
         for t in 1:model[:time_steps]
-            Bilevel.print_network_tikz(model[:network_data], t, 40, 40; 
-            dir=network_plot_path, filename=parsed_args["network_graph_name"] * "_timestep_$t", display=false,reshape=false)
+            Bilevel.print_network_tikz(model[:network_data], t, 5.5, 5; 
+            dir=network_plot_path, filename=parsed_args["network_graph_name"] * "_timestep_$t", display=false,reshape=true)
         end
 
         # -- DIFFERENT PLOTS RESULTING FROM A SIMULATION --

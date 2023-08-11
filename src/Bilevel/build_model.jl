@@ -34,8 +34,8 @@ function build_model(   simulation::Simulation;
     model[:DSO_costs]        = simulation.DSO_costs 
     model[:User_costs]       = simulation.User_costs 
     model[:time_steps]       = simulation.nb_time_steps #ATTENTION PUT BACK TO NB TIME STEPS
-    model[:bilevel] = simulation.bilevel
-    model[:storage] = simulation.storage
+    model[:bilevel]          = simulation.bilevel
+    model[:storage]          = simulation.storage
 
     model[:delta_t]          = simulation.delta_t
     model[:nb_sign_days]     = simulation.nb_sign_days
@@ -137,7 +137,8 @@ function _update_buses!(model::JuMP.AbstractModel)
         if !isnothing(b.storage)
             storage = b.storage
             storage.capa = JuMP.value.(model[:storage_capacity][i])
-            storage.P = JuMP.value.(model[:p_storage][:, i])
+            storage.P_charge = JuMP.value.(model[:p_storage_charge][:, i])
+            storage.P_discharge = JuMP.value.(model[:p_storage_discharge][:, i])
             storage.state = JuMP.value.(model[:storage_state][:, i])
         end
 

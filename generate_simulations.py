@@ -57,7 +57,7 @@ EV = [False, True]
 HP = [False, True]
 # Inclusion of storage in the simulations
 storage = [False, True]
-Storage_cost = [300, 150, 500]
+Storage_cost = [500, 300, 600]
 # Network reconfiguration allowed or not
 network_reconfig = [False, True]
 # Bilevel or single model
@@ -65,7 +65,7 @@ bilevel = [True, False]
 
 # Maximum PV capacity per load bus [MVA]
 PV_CAPA = [0.4, 0.0, 0.8, 1.6]
-PVC = [500, 150, 300]
+PVC = [500, 300, 600]
 # Cost of the energy that is imported [k€/kWh]
 EIC = [0.3, 0.6, 0.9]
 # Cost of the energy that is exported [k€/kWh]

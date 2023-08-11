@@ -136,7 +136,8 @@ mutable struct Storage
     efficiency::Float64 
     capa::Union{Nothing, Float64}
     state::Union{Nothing, Vector{Float64}}
-    P::Union{Nothing, Vector{Float64}} # in pu, always positive cause generation
+    P_charge::Union{Nothing, Vector{Float64}} # in pu, always positive cause generation
+    P_discharge::Union{Nothing, Vector{Float64}} # in pu, always positive cause generation
 
     function Storage(efficiency::Float64) 
         return new(efficiency, nothing, nothing, nothing) 
