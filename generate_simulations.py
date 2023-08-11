@@ -78,7 +78,7 @@ GCC = [80, 120, 160]
 weight_I = [1.0e-2, 1.0e-3, 1.0e-1]
 
 network_file = "network_graph_simu"
-plot_file = "plot_simu"
+plot_file    = "plot_simu"
 
 # Reference configuration
 ref_config = [EV[0], HP[0], storage[0], Storage_cost[0], network_reconfig[0], bilevel[0], PV_CAPA[0], PVC[0], EIC[0], EEC[0], DSOEC[0], GCC[0], weight_I[0]]
@@ -111,17 +111,19 @@ script_file.write("""#!/usr/bin/env bash
 \n""")
 
 # Going through all parameters defined previously (more can be added with other for loops)
+count = 0
+
 for i, variable in enumerate(iterator):
-        
-        network_file_name = network_file + str(i)
-        plot_file_name    = plot_file + str(i)
 
         # We skip storage by itself
         if i == 2:
                 continue
         
         for v, value in enumerate(variable):
-                
+                network_file_name = network_file + str(count)
+                plot_file_name    = plot_file + str(count)
+                simu_name = "simu_"+ str(count)
+
                 # Current configuration
                 curr_conf = ref_config
 
@@ -133,13 +135,14 @@ for i, variable in enumerate(iterator):
                 curr_conf[i] = value
 
                 # Writting down new simulation test in command line in the script
-                terminal_command = f"""julia --project src/main_bilevel.jl --EV {str(curr_conf[0])} --EHP {str(curr_conf[1])} --storage {str(curr_conf[2])} --Storage_cost {str(curr_conf[3])} --network_reconfig {str(curr_conf[4])} --bilevel {str(curr_conf[5])} --PV_CAPA {str(curr_conf[6])} --PVC {str(curr_conf[7])} --EIC {str(curr_conf[8])} --EEC {str(curr_conf[9])} --DSOEC {str(curr_conf[10])} --GCC {str(curr_conf[11])} --weight_I {str(curr_conf[12])} --network_graph_name {network_file_name} --plot_file_name {plot_file_name} \n"""
+                terminal_command = f"""julia --project src/main_bilevel.jl --EV {str(curr_conf[0])} --EHP {str(curr_conf[1])} --storage {str(curr_conf[2])} --Storage_cost {str(curr_conf[3])} --network_reconfig {str(curr_conf[4])} --bilevel {str(curr_conf[5])} --PV_CAPA {str(curr_conf[6])} --PVC {str(curr_conf[7])} --EIC {str(curr_conf[8])} --EEC {str(curr_conf[9])} --DSOEC {str(curr_conf[10])} --GCC {str(curr_conf[11])} --weight_I {str(curr_conf[12])} --network_graph_name {network_file_name} --plot_file_name {plot_file_name} --simu_name {simu_name}\n"""
 
                 # Checking for bitches
                 terminal_command = terminal_command.replace("True", "true")
                 terminal_command = terminal_command.replace("False", "false")
 
                 script_file.write(terminal_command)
+                count +=1 
 
 # Closing the script
 script_file.close()

@@ -94,11 +94,14 @@ function print_initial_network(network, x_scale, y_scale;
     if display
         run(Cmd(`lualatex $filename.tex`, dir="$dir"))
         run(Cmd(`open $filename.pdf`, dir="$dir"))
+    else 
+        run(Cmd(`lualatex $filename.tex`, dir="$dir"))
+        #run(Cmd(`open $filename.pdf`, dir="$dir"))
     end
 end
 
 function print_network_tikz(network, time_step, x_scale, y_scale;
-                        dir=pwd(), filename="graph", display=true, reshape=false)
+                        dir=pwd(), filename="graph", display=false, reshape=false)
     
     
     preamble = """\\documentclass{standalone}
@@ -108,6 +111,7 @@ function print_network_tikz(network, time_step, x_scale, y_scale;
     \\usepackage{xcolor}
     \\definecolor{Ulg_blue}{RGB}{9, 111, 123}
     \\definecolor{Ulg_red}{RGB}{132, 38, 0}
+    \\definecolor{Ulg_orange}{RGB}{223, 168, 120}
     \\begin{document}
     \\begin{tikzpicture}[
         every label/.style = {align=center, font=\\tiny, inner sep=2pt},
@@ -177,9 +181,32 @@ function print_network_tikz(network, time_step, x_scale, y_scale;
                 P_cons = round(b.load_profile.time_serie[time_step] * b.cos_phi; digits = 2)
                 P_gen = isnothing(b.PV_installation) ? 0.0 : b.PV_installation.P[time_step]
                 P_gen = round(P_gen; digits=2)
-                
-                write(file,
-                "    $n [x=$(x)cm, y=$(y)cm, as={\$\\mathcal{U}_{$nu}\$  \\vspace{-0.2em} \\scriptsize  \$ \\color{Ulg_blue} \\mathbf{$P_gen}\$ \\vspace{0.1em} \\scriptsize \$ \\color{Ulg_red} \\mathbf{$P_cons}\$}, $(style_load)];\n")
+                P_stor = isnothing(b.storage) ? 0.0 : b.storage.P[time_step]
+                P_stor = round(P_gen; digits=2)
+            
+                if isnothing(b.PV_installation)
+                    if isnothing(b.storage) 
+                        write(file,
+                        "    $n [x=$(x)cm, y=$(y)cm, as={\$\\scriptsize \$ \\color{Ulg_red} \\mathbf{$P_cons} \$}, $(style_load)];\n")
+                    else 
+                        P_stor = b.storage.P[time_step]
+                        P_stor = round(P_stor; digits=2)
+                        write(file,
+                        "    $n [x=$(x)cm, y=$(y)cm, as={\$\\mathcal{U}_{$nu}\$  \\vspace{-0.2em} \\scriptsize  \$ \\color{Ulg_orange} \\mathbf{$P_stor}\$ \\vspace{0.1em} \\scriptsize \$ \\color{Ulg_red} \\mathbf{$P_cons}\$}, $(style_load)];\n")
+                    end
+                else 
+                    P_gen = b.PV_installation.P[time_step]
+                    P_gen = round(P_gen; digits=2)
+                    if isnothing(b.storage) 
+                        write(file,
+                        "    $n [x=$(x)cm, y=$(y)cm, as={\$\\mathcal{U}_{$nu}\$  \\vspace{-0.2em} \\scriptsize  \$ \\color{Ulg_blue} \\mathbf{$P_gen}\$ \\vspace{0.1em} \\scriptsize \$ \\color{Ulg_red} \\mathbf{$P_cons}\$}, $(style_load)];\n")
+                    else 
+                        P_stor = b.storage.P[time_step]
+                        P_stor = round(P_gen; digits=2)
+                        write(file,
+                        "    $n [x=$(x)cm, y=$(y)cm, as={\$\\mathcal{U}_{$nu}\$  \\vspace{-0.2em} \\scriptsize  \$ \\color{Ulg_blue} \\mathbf{$P_gen}\$ \\vspace{0.1em} \\scriptsize \$ \\color{Ulg_orange} \\mathbf{$P_stor}\$ \\vspace{0.1em} \\scriptsize \$ \\color{Ulg_red} \\mathbf{$P_cons}\$}, $(style_load)];\n")
+                    end
+                end
             end
         end
 
@@ -219,6 +246,8 @@ function print_network_tikz(network, time_step, x_scale, y_scale;
     if display
         run(Cmd(`lualatex $filename.tex`, dir="$dir"))
         run(Cmd(`open $filename.pdf`, dir="$dir"))
+    else
+        run(Cmd(`lualatex $filename.tex`, dir="$dir"))
     end
 end
 
@@ -292,8 +321,6 @@ function plot_results(model::JuMP.AbstractModel; dir=pwd(), filename="plot", pgf
 
         Plots.plot!(fig, time, sqrt.(if_small(value.(model[:I_sqr])[:, l])) * BASE_CURRENT, label=L"\|I\|", linewidth=1.5, color=colors[1])
 
-        
-
         #pgfplot && Plots.savefig(fig, joinpath(dir, "$current_filename.tikz"))
         Plots.savefig(fig, joinpath(dir, "$current_filename.pdf"))
     end
@@ -348,46 +375,43 @@ function plot_results(model::JuMP.AbstractModel; dir=pwd(), filename="plot", pgf
     # Power Summary
     total_losses_per_t = [(BASE_POWER * value(sum(lines[l].length * conductors[k].r * model[:I_sqr_k][t, l, k] for l in 1:L, k in 1:K))) for t in time] 
     total_losses_per_t_MWh = total_losses_per_t .* DELTA_T/60
+
     current_filename = filename * "summary_system_power"
-    #pgfplot && Plots.pgfplotsx()
     fig = Plots.plot(xlabel="Time Steps", ylabel="Power [MW]", tex_output_standalone = false, legend = :best, tickfontsize=10,formatter=:latex)
 
     Plots.plot!(fig, time, [sum(value.(model[:P_sub])[t, :]) for t in time] * BASE_POWER, label=L"P_{S,tot}", linewidth=1.5, color=colors[1])
     Plots.plot!(fig, time, [sum(P_consumed[t, :]) * BASE_POWER for t in time], label=L"P_{D,tot}", linewidth=1.5, color=colors[3])
-    Plots.plot!(fig, time, [sum(value.(model[:p_pv])[:, t]) * BASE_POWER for t in time], label=L"p_{PV,tot}", linewidth=1.5, color=colors[5])
+    Plots.plot!(fig, time, [sum(value.(model[:p_pv])[t, :]) * BASE_POWER for t in time], label=L"p_{PV,tot}", linewidth=1.5, color=colors[5])
     Plots.plot!(fig, time, total_losses_per_t, label=L"P_{L,tot}", linewidth=1.5, color=colors[7])
     # plot!(fig, time, [sum(value.(model[:p_pv])[t, :]) * BASE_POWER for t in time] .+ [sum(value.(model[:P_sub])[t, :]) for t in time] * BASE_POWER .- total_losses, label="p_pv + P_sub - losses[MW]")
-    
-    #pgfplot && Plots.savefig(fig, joinpath(dir, "$current_filename.tikz"))
     Plots.savefig(fig, joinpath(dir, "$current_filename.pdf"))
+
+    # plot!(fig, time, [sum(value.(model[:p_pv])[t, :]) * BASE_POWER for t in time] .+ [sum(value.(model[:P_sub])[t, :]) for t in time] * BASE_POWER .- total_losses, label="p_pv + P_sub - losses[MW]")
 
     # Energy
     total_losses_per_t_MWh = total_losses_per_t .* DELTA_T/60
-    current_filename = filename * "summary_system_energy"
-    #pgfplot && Plots.pgfplotsx()
+    current_filename = filename * "summary_system_energy"    
     fig = Plots.plot(xlabel="Time Steps", ylabel="Energy [MWh]", tex_output_standalone = false, legend = :best, tickfontsize=10,formatter=:latex)
-
     Plots.plot!(fig, time, [sum(value.(model[:P_sub])[t, :]) for t in time] * BASE_POWER * DELTA_T/60, label=L"E_{S,tot}", linewidth=1.5, color=colors[1])
     Plots.plot!(fig, time, [sum(P_consumed[t, :]) * BASE_POWER * DELTA_T/60 for t in time], label=L"E_{D,tot}", linewidth=1.5, color=colors[3])
-    Plots.plot!(fig, time, [sum(value.(model[:p_pv])[:, t]) * BASE_POWER * DELTA_T/60 for t in time], label=L"e_{PV,tot}", linewidth=1.5, color=colors[5])
+    Plots.plot!(fig, time, [sum(value.(model[:p_pv])[t, :]) * BASE_POWER * DELTA_T/60 for t in time], label=L"e_{PV,tot}", linewidth=1.5, color=colors[5])
     Plots.plot!(fig, time, total_losses_per_t_MWh, label=L"E_{L,tot}", linewidth=1.5, color=colors[7])
-    # plot!(fig, time, [sum(value.(model[:p_pv])[t, :]) * BASE_POWER for t in time] .+ [sum(value.(model[:P_sub])[t, :]) for t in time] * BASE_POWER .- total_losses, label="p_pv + P_sub - losses[MW]")
-    
-    #pgfplot && Plots.savefig(fig, joinpath(dir, "$current_filename.tikz"))
     Plots.savefig(fig, joinpath(dir, "$current_filename.pdf"))
+
+    # plot!(fig, time, [sum(value.(model[:p_pv])[t, :]) * BASE_POWER for t in time] .+ [sum(value.(model[:P_sub])[t, :]) for t in time] * BASE_POWER .- total_losses, label="p_pv + P_sub - losses[MW]")
 
     # Plot storage
     if model[:storage]
         for i in 1:Nu
             current_filename = filename * "storage_bus_$(Ns + i)"
             #pgfplot && Plots.pgfplotsx()
-            fig = Plots.plot(xlabel="Time Steps", ylabel="Power [MW]", tex_output_standalone = false, legend = :best, linewidth=1.5, tickfontsize=10,formatter=:latex)
+            fig = Plots.plot(xlabel="Time Steps", ylabel="Power [MW]", tex_output_standalone = false, legend = :best, tickfontsize=10,formatter=:latex)
 
             Plots.plot!(fig, time, value.(model[:p_storage])[:, i], label=L"p_{st}", linewidth=1.5, color=colors[1])
 
-            Plots.plot!(fig, time, value.(model[:storage_state])[:, i], label=L"SOC", color=colors[3])
+            Plots.plot!(fig, time, value.(model[:storage_state])[:, i], label=L"SOC", color=colors[3], linewidth=1.5,)
 
-            Plots.hline!(fig, [value(model[:storage_capacity][i])], label=L"p_{st,capa}", color=colors[5],linestyle=:dash)
+            Plots.hline!(fig, [value(model[:storage_capacity][i])], label=L"p_{st,capa}", color=colors[5], linestyle=:dash, linewidth=1.5,)
             summer_check = round.([value(model[:storage_state][1, i]) value(model[:storage_state][24, i])+ value(model[:p_storage][1, i])* buses[Ns+i].storage.efficiency], sigdigits=2)
             winter_check = round.([value(model[:storage_state][25, i]) value(model[:storage_state][48, i])+value(model[:p_storage][25, i])* p.STORAGE_EFF], sigdigits=2)
             Plots.annotate!(12, 0.9 * value(model[:storage_capacity][i]), "$(summer_check[1]) ?= $(summer_check[2])")

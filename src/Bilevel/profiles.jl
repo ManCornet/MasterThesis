@@ -200,13 +200,15 @@ function print_load_profiles(fig_name::String,
                         EV::Bool=false,
                         EHP::Bool=false)
 
+    colors = ["#bb5b46", "#b37e6e", "#bc9780", "#dfa878", "#5f8d8d", "#3f7e84", "#096f7b"]
     base_time_steps = vec(1:size(base_profiles)[1]) * base_granularity
     time_steps = vec(1:size(profiles)[1]) * delta_t
     label = "Base load"
-    fig = Plots.plot(base_time_steps, sum(base_profiles, dims=2), label=label, xlabel = L"Time[min.] ($\Delta t=%$(delta_t))$", ylabel="Power Consumption [MVA]")
+    fig = Plots.plot(base_time_steps, sum(base_profiles, dims=2), label=label, xlabel = "Time [min.]", ylabel="Power Consumption [MVA]", linewidth=1, formatter=:latex, color=colors[1], linealpha=0.8)
+    label = "Aggregated load"
     label = EV ? (label * " + EV") : label 
     label = EHP ? (label * " + EHP") : label 
-    Plots.plot!(fig, time_steps, sum(profiles, dims=2), label=label)
+    Plots.plot!(fig, time_steps, sum(profiles, dims=2), label=label,linewidth=1.5, formatter=:latex, tickfontsize=10, color=colors[7])
     Plots.savefig(fig, fig_name)
     return
 end
@@ -216,9 +218,11 @@ function print_PV_profiles( fig_name::String,
                             delta_t::Integer=5,
                             id_profiles)
 
+    colors = ["#bb5b46", "#b37e6e", "#bc9780", "#dfa878", "#5f8d8d", "#3f7e84", "#096f7b"]
     time = vec(1:size(profiles)[1]) * delta_t
-    label = vec(["PV installation of user $i" for i in id_profiles])
-    fig = Plots.plot(time, profiles, label=hcat(id_profiles...), xlabel = L"Time[min.] ($\Delta t=%$(delta_t))$", ylabel="Power Production [%PeakPower]")
+    # label = vec(["PV installation of user $i" for i in id_profiles])
+    # fig = Plots.plot(time, profiles, label=hcat(id_profiles...), xlabel = "Time [min.]$", ylabel="Power Production [% Peak Power]", linewidth=1.5, formatter=:latex)
+    fig = Plots.plot(time, profiles[:, 1], label="", xlabel = "Time [min.]", ylabel="Power Production [% Peak Power]", linewidth=1.5, formatter=:latex, tickfontsize=10, color=colors[1])
     Plots.savefig(fig, fig_name)
     return
 end

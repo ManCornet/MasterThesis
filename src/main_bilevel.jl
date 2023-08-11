@@ -39,6 +39,11 @@ function parse_commandline(;as_symbols::Bool=false)
             help = "Name of the network graphs"
             arg_type = String
             default = "plot_simu"
+        
+        "--simu_name"
+            help = "Simulation name"
+            arg_type = String
+            default = "simu"
 
         # ------- Choice of the model -------
         "--bilevel"
@@ -75,7 +80,7 @@ function parse_commandline(;as_symbols::Bool=false)
         "--PP"
             help = "Load peak power"
             arg_type = Float64
-            default = 7.0
+            default = 0.5 # 7.0 by default change that !!!
 
         "--EV"
             help = "EVs taken into account in residential consumption profiles [-]"
@@ -208,7 +213,6 @@ function main()
 
     verbose     = parsed_args["verbose"]
 
-    
     # ------- Choice of the model -------
     bilevel     = parsed_args["bilevel"]
     storage     = parsed_args["storage"]
@@ -265,22 +269,21 @@ function main()
 
     # -- Fetching the path of the main directories --
     root_dir          = splitdir(@__DIR__)[1]
-    plot_dir          = joinpath(root_dir, "plots")
+    simulations_dir   = joinpath(root_dir, "simulations")
     network_data_dir  = joinpath(root_dir, "NetworkModels")
     profiles_data_dir = joinpath(root_dir, "ManchesterData", "LCT_profiles")
 
     # -- Loading the excel file containing the network topology --
 
     # Add choice for the test network
-    NETWORK_PATH = joinpath(network_data_dir, "network_Nahman_Peric_2S23H.xlsx") 
-    #NETWORK_PATH = joinpath(network_data_dir, "model_2S2H.xlsx") 
+    #NETWORK_PATH = joinpath(network_data_dir, "network_Nahman_Peric_2S23H.xlsx") 
+    NETWORK_PATH = joinpath(network_data_dir, "model_2S2H.xlsx") 
     pu_basis = define_pu_basis()
 
     # -- Fetching the network data --
-    network, network_topology = get_network_data(NETWORK_PATH; max_pv_capa=PV_capa, pu_basis=pu_basis, cos_phi=cos_phi)
+    network, network_topology = Bilevel.get_network_data(NETWORK_PATH; max_pv_capa=PV_capa, pu_basis=pu_basis, cos_phi=cos_phi)
     #print_network_topology(network_topology)
-    #save_struct(network_topology, "network_topology.json")
-    #save_struct(network, "network_data.json")
+
 
     # =========================== Load profiles  ==============================
 
@@ -328,14 +331,7 @@ function main()
 
     load_profiles, _ , _ = build_profiles(daily_profiles; scaling_factor=scaling_factor)
 
-    print_load_profiles( joinpath(plot_dir, "load_profiles.pdf"), 
-                        base_load_profiles, 
-                        load_profiles;
-                        base_granularity=5, 
-                        delta_t=delta_t, 
-                        EV=EV, 
-                        EHP=EHP
-                    )
+
 
     # -- Add load profiles to network structure -- 
     add_load_profiles!(network, load_profiles; delta_t=delta_t, pu_basis=pu_basis)
@@ -365,8 +361,6 @@ function main()
 
         PV_profiles, _ , _ = build_profiles(daily_PV_profiles)
 
-        print_PV_profiles(joinpath( plot_dir, "PV_profiles.pdf"), PV_profiles;
-                                    delta_t=delta_t, id_profiles=ids_profiles[1])
 
         # -- Add PV profiles to network structure -- 
         PQ_diagram = (max_q = 0.3, slope=-1.0)
@@ -448,6 +442,26 @@ function main()
                                         formulation)
 
     # =========================== Solving the model  ===========================
+    simu_path = joinpath(simulations_dir, parsed_args["simu_name"])
+    !isdir(simu_path) && mkdir(simu_path)
+
+    # --- Solving input data --
+    input_data_path = joinpath(simu_path, "input_data")
+    !isdir(input_data_path) && mkdir(input_data_path)
+
+    print_load_profiles( joinpath(input_data_path, "load_profiles.pdf"), 
+                        base_load_profiles, 
+                        load_profiles;
+                        base_granularity=5, 
+                        delta_t=delta_t, 
+                        EV=EV, 
+                        EHP=EHP
+                    )
+
+    print_PV_profiles(joinpath( input_data_path, "PV_profiles.pdf"), PV_profiles;
+    delta_t=delta_t, id_profiles=ids_profiles[1])
+
+    # --- Solving model --
     failure = false
     result = nothing
     try
@@ -463,14 +477,16 @@ function main()
     push!(param_table, param_keys)
     push!(param_table, param_values)
 
-    XLSX_PATH = "/Users/manoncornet/Documents/University/TFE/Bilevel_DNEP/src/simulation_output/sensitivity_analysis_" * (Dates.format(now(), "yyyy-mm-dd")) * ".xlsx"
 
+    XLSX_PATH = joinpath(simu_path, "results.xlsx")
     isfile(XLSX_PATH) ? mode = "rw" : mode = "w"
 
     XLSX.openxlsx(XLSX_PATH, mode = mode) do xf
-        mode == "rw" && XLSX.addsheet!(xf)
+        #mode == "rw" && XLSX.addsheet!(xf)
+        #sheet_names = XLSX.sheetnames(xf)
+        #current_sheet = sheet_names[end]
         sheet_names = XLSX.sheetnames(xf)
-        current_sheet = sheet_names[end]
+        current_sheet = sheet_names[1]
         current_working_sheet = xf[current_sheet]
         XLSX.writetable!(current_working_sheet, param_table, ["", ""])
         df = DataFrame(result[2:end, :], result[1, :])
@@ -479,16 +495,27 @@ function main()
     end
 
     if !failure
+        # -- SAVE JSON FILE STRUCTURES --
+        json_path = joinpath(simu_path, "json")
+        !isdir(json_path) && mkdir(json_path)
+
+        save_struct(network_topology, joinpath(json_path, "network_topology.json"))
+        save_struct(network, joinpath(json_path, "network_data.json"))
+
         # -- PRINTING THE NETWORK AT EACH TIME STEP --
-        dir = "/Users/manoncornet/Documents/University/TFE/Bilevel_DNEP/src/simulation_output/" 
+        network_plot_path = joinpath(simu_path, "network_plots")
+        !isdir(network_plot_path) && mkdir(network_plot_path)
+       
         for t in 1:model[:time_steps]
-            filename = (Dates.format(now(), "yyyy-mm-dd")) * "network_graph_time_step_$t"
-            Bilevel.print_network_tikz(model[:network_data], t, 5, 5; 
-            dir=dir, filename=parsed_args["network_graph_name"] * "_timestep_$t", reshape=true)
+            Bilevel.print_network_tikz(model[:network_data], t, 40, 40; 
+            dir=network_plot_path, filename=parsed_args["network_graph_name"] * "_timestep_$t", display=false,reshape=false)
         end
 
         # -- DIFFERENT PLOTS RESULTING FROM A SIMULATION --
-        Bilevel.plot_results(model; dir=dir, filename=parsed_args["plot_file_name"], pgfplot=true)
+        figures_path = joinpath(simu_path, "figures")
+        !isdir(figures_path) && mkdir(figures_path)
+
+        Bilevel.plot_results(model; dir=figures_path, filename=parsed_args["plot_file_name"], pgfplot=true)
     end
 
     # -- Run a simulation of the model --
