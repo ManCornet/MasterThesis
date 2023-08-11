@@ -237,12 +237,16 @@ end
 
 function plot_results(model::JuMP.AbstractModel; dir=pwd(), filename="plot", pgfplot=true)
 
-    colors = ["#096F7B", "#FF8D3E","#842600"]
+    # First: 3 nuances of brown, 3 nuances of 
+    colors = ["#bb5b46", "#b37e6e", "#bc9780", "#dfa878", "#5f8d8d", "#3f7e84", "#096f7b"]
+
 
     network = model[:network_data]
     buses = network.buses
+    lines = network.lines 
+    conductors = network.conductors
     T = model[:time_steps]
-    L = get_nb_lines
+    L = get_nb_lines(network)
     Ns = get_nb_substations(network)
     Nu = get_nb_loads(network)
     K = get_nb_conductors(network)
@@ -252,129 +256,150 @@ function plot_results(model::JuMP.AbstractModel; dir=pwd(), filename="plot", pgf
     P_consumed = [buses[Ns + i].load_profile.time_serie[t] * buses[Ns+i].cos_phi * BASE_POWER  for t in 1:T, i in 1:Nu] 
     PV_prod = [buses[Ns + i].PV_installation.profile.time_serie[t] * BASE_POWER  for t in 1:T, i in 1:Nu]
 
+    time = collect(1:T)
     # PV understanding
     for u in 1:Nu
         current_filename = filename * "pv_bus_$(Ns+u)"
-        pgfplot && Plots.pgfplotsx()
-        fig = Plots.plot(xlabel="Time Steps", ylabel="Power [MW]", tex_output_standalone = false, legend = :topleft)
 
-        plot!(fig, 1:T, P_consumed[:, u], label=L"$P_{D}$", color=colors[1], linewidth=1.3)
-        plot!(fig, 1:T, [value.(model[:p_pv_max])[u] for t in 1:T], label=L"$p_{PV}^{capa}}$", color=colors[2], linewidth=1.3, linestyle=:dash)
-        plot!(fig, 1:T, value.(model[:p_pv])[:, u], label=L"$p_{PV}$", color=colors[i+1], linewidth=1.3, color=colors[2], linealpha=0.6, linestyle=:solid)
-        plot!(fig, 1:T, PV_prod[:, u] * value.(model[:p_pv_max])[u], label="\overbar{p_{PV}}", linewidth=1.3, color=colors[2], linealpha=0.8, linestyle= :dashdot)
-        plot!(fig, 1:T, value.(model[:p_exp])[:, u], label=L"$p_{exp}$", linewidth=1.3, color=colors[3])
+        fig = Plots.plot(xlabel="Time Steps", ylabel="Power [MW]", tex_output_standalone = false, legend = :best, tickfontsize=10, formatter=:latex)
 
-        pgfplot && Plots.savefig(fig, joinpath(dir, "$current_filename.tikz"))
+        Plots.plot!(fig, time, P_consumed[:, u], label=L"P_{D}", color=colors[7], linewidth=1.5)
+
+        Plots.plot!(fig, time, [value.(model[:p_pv_max])[u] for t in time], label=L"p_{PV,capa}", color=colors[1], linewidth=1.5, linestyle=:dash)
+
+        Plots.plot!(fig, time, value.(model[:p_pv])[:, u], label=L"p_{PV}", linewidth=1.5, color=colors[4])
+
+        Plots.plot!(fig, time, PV_prod[:, u] .* value.(model[:p_pv_max])[u], label=L"p_{PV,max}", linewidth=1.5, color=colors[3])
+
+        Plots.plot!(fig, time, value.(model[:p_exp])[:, u], label=L"p_{exp}", linewidth=1.5, color=colors[2])
+
+        #display(fig)
+        #pgfplot && Plots.savefig(fig, joinpath(dir, "$current_filename.tikz"))
         Plots.savefig(fig, joinpath(dir, "$current_filename.pdf"))
     end
 
     # Plot currents
     for l in 1:L
         current_filename = filename * "current_line_$(l)"
-        pgfplot && Plots.pgfplotsx()
-        fig = Plots.plot(xlabel="Time Steps", ylabel="Current [kA]", tex_output_standalone = false, legend = :topleft)
+        #pgfplot && Plots.pgfplotsx()
+        fig = Plots.plot(xlabel="Time Steps", ylabel="Current [kA]", tex_output_standalone = false, legend = :best, tickfontsize=10,formatter=:latex)
         chosen_cond_index = findfirst(i -> isapprox(i, 1; rtol=1e-4), value.(model[:Alpha])[l, :])
         if isnothing(chosen_cond_index)
             continue
         end
-        plot!(fig, 1:T, sqrt.(if_small(value.(model[:I_sqr])[l, :])) * BASE_CURRENT, label=L"$|I|$", title="Line $(l)", linewidth=1.3, color=colors[1])
-        plot!(fig, 1:T, network.conductors[chosen_cond_index].max_i * BASE_CURRENT * ones(T), label=L"$|\overbar{I}|$", linewidth=1.3, color=colors[2], linestyle=:dash)
 
-        pgfplot && Plots.savefig(fig, joinpath(dir, "$current_filename.tikz"))
+        Plots.plot!(fig, time, network.conductors[chosen_cond_index].max_i * BASE_CURRENT * ones(T), label=L"(\|I\|)^{max}", linewidth=1.5, color=colors[7], linestyle=:dash)
+
+        Plots.plot!(fig, time, sqrt.(if_small(value.(model[:I_sqr])[:, l])) * BASE_CURRENT, label=L"\|I\|", linewidth=1.5, color=colors[1])
+
+        
+
+        #pgfplot && Plots.savefig(fig, joinpath(dir, "$current_filename.tikz"))
         Plots.savefig(fig, joinpath(dir, "$current_filename.pdf"))
     end
 
-    # Display the power for each conductor
+    # Plot currents conductors
     for l in 1:L
-        current_filename = filename * "power_line_$(l)"
-        pgfplot && Plots.pgfplotsx()
-        fig = Plots.plot(xlabel="Time Steps", ylabel="Power [kA]", tex_output_standalone = false, legend = :topleft)
+        current_filename = filename * "current_k_line_$(l)"
+        #pgfplot && Plots.pgfplotsx()
+        fig = Plots.plot(xlabel="Time Steps", ylabel="Current [kA]", tex_output_standalone = false, legend = :best, tickfontsize=10,formatter=:latex)
        
         chosen_cond_index = findfirst(i -> isapprox(i, 1; rtol=1e-4), value.(model[:Alpha])[l, :])
         title = isnothing(chosen_cond_index) ? "Line $l is not built" : "Line $l is built with conductor $chosen_cond_index"
         for k in 1:K
-            plot!(plt, p.T, sqrt.(if_small(value.(model[:I_sqr_k])[l, k, :])) * BASE_CURRENT, label="I_ij_$k [kA]", title=title)
+            Plots.plot!(fig, time, sqrt.(if_small(value.(model[:I_sqr_k])[:, l, k])) * BASE_CURRENT, label=L"\|I_{ij}\|"*" (k = $k)", title=title, color=colors[k])
         end
-        plot!(plt, p.T, sum(sqrt.(if_small(value.(model[:I_sqr_k])[l, :, :])) * BASE_CURRENT, dims=1)', label="I_ij [kA]")
+        Plots.plot!(fig, time, sum(sqrt.(if_small(value.(model[:I_sqr_k])[:, l, :])) * BASE_CURRENT, dims=2), label=L"\|I_{ij}\|", color=colors[7])
         
-        pgfplot && Plots.savefig(fig, joinpath(dir, "$current_filename.tikz"))
+        #pgfplot && Plots.savefig(fig, joinpath(dir, "$current_filename.tikz"))
         Plots.savefig(fig, joinpath(dir, "$current_filename.pdf"))
     end
 
     # Check voltage limits
     for i in 1:(Ns+Nu)
-        current_filename = filename * "power_line_$(l)"
-        pgfplot && Plots.pgfplotsx()
-        fig = Plots.plot(xlabel="Time Steps", ylabel="Power [kA]", tex_output_standalone = false, legend = :topleft)
+        current_filename = filename * "voltage_bus_$(i)"
+        #pgfplot && Plots.pgfplotsx()
+        fig = Plots.plot(xlabel="Time Steps", ylabel="Voltage [p.u.]", tex_output_standalone = false, legend = :best, tickfontsize=10,formatter=:latex)
 
-        plot!(fig, 1:T, sqrt.(value.(model[:V_sqr])[i, :]), label="V [p.u.]", title="Bus $(i)")
-        plot!(fig, 1:T, p.T, p.MIN_VOLTAGE * ones(p.T_SIZE), label="MIN_VOLTAGE [p.u.]")
-        plot!(fig, 1:T, p.T, p.MAX_VOLTAGE * ones(p.T_SIZE), label="MAX_VOLTAGE [p.u.]")
+        Plots.plot!(fig, time, buses[i].V_limits.V_min * ones(T), label=L"V^{min}", color=colors[4], linewidth=1.5, linestyle=:dash)
+        Plots.plot!(fig, time, buses[i].V_limits.V_max * ones(T), label=L"V^{max}", color=colors[7], linewidth=1.5, linestyle=:dash)
+        Plots.plot!(fig, time, sqrt.(value.(model[:V_sqr])[:, i]), label=L"V", color=colors[1], linewidth=1.5)
+       
 
-        pgfplot && Plots.savefig(fig, joinpath(dir, "$current_filename.tikz"))
+        #pgfplot && Plots.savefig(fig, joinpath(dir, "$current_filename.tikz"))
         Plots.savefig(fig, joinpath(dir, "$current_filename.pdf"))
     end
+
+    # P_substations
+    for i in 1:Ns
+        current_filename = filename * "substation_$(i)"
+        #pgfplot && Plots.pgfplotsx()
+        fig = Plots.plot(xlabel="Time Steps", ylabel="Voltage [kV]", tex_output_standalone = false, legend = :best, tickfontsize=10,formatter=:latex)
+       
+        Plots.plot!(fig, time, value.(model[:S_sub])[:, i], label=L"S_{S}", color=colors[1], linewidth=1.5)
+        Plots.plot!(fig, time, value.(model[:P_sub])[:, i], label=L"P_{S}", color=colors[4], linewidth=1.5)
+        Plots.plot!(fig, time, value.(model[:S_sub_capa])[i]*ones(T), label=L"S_{S,capa}", color=colors[7], linestyle=:dash, linewidth=1.5)
+
+        #pgfplot && Plots.savefig(fig, joinpath(dir, "$current_filename.tikz"))
+        Plots.savefig(fig, joinpath(dir, "$current_filename.pdf"))
+    end
+
+    DELTA_T = model[:delta_t]
+    # Power Summary
+    total_losses_per_t = [(BASE_POWER * value(sum(lines[l].length * conductors[k].r * model[:I_sqr_k][t, l, k] for l in 1:L, k in 1:K))) for t in time] 
+    total_losses_per_t_MWh = total_losses_per_t .* DELTA_T/60
+    current_filename = filename * "summary_system_power"
+    #pgfplot && Plots.pgfplotsx()
+    fig = Plots.plot(xlabel="Time Steps", ylabel="Power [MW]", tex_output_standalone = false, legend = :best, tickfontsize=10,formatter=:latex)
+
+    Plots.plot!(fig, time, [sum(value.(model[:P_sub])[t, :]) for t in time] * BASE_POWER, label=L"P_{S,tot}", linewidth=1.5, color=colors[1])
+    Plots.plot!(fig, time, [sum(P_consumed[t, :]) * BASE_POWER for t in time], label=L"P_{D,tot}", linewidth=1.5, color=colors[3])
+    Plots.plot!(fig, time, [sum(value.(model[:p_pv])[:, t]) * BASE_POWER for t in time], label=L"p_{PV,tot}", linewidth=1.5, color=colors[5])
+    Plots.plot!(fig, time, total_losses_per_t, label=L"P_{L,tot}", linewidth=1.5, color=colors[7])
+    # plot!(fig, time, [sum(value.(model[:p_pv])[t, :]) * BASE_POWER for t in time] .+ [sum(value.(model[:P_sub])[t, :]) for t in time] * BASE_POWER .- total_losses, label="p_pv + P_sub - losses[MW]")
+    
+    #pgfplot && Plots.savefig(fig, joinpath(dir, "$current_filename.tikz"))
+    Plots.savefig(fig, joinpath(dir, "$current_filename.pdf"))
+
+    # Energy
+    total_losses_per_t_MWh = total_losses_per_t .* DELTA_T/60
+    current_filename = filename * "summary_system_energy"
+    #pgfplot && Plots.pgfplotsx()
+    fig = Plots.plot(xlabel="Time Steps", ylabel="Energy [MWh]", tex_output_standalone = false, legend = :best, tickfontsize=10,formatter=:latex)
+
+    Plots.plot!(fig, time, [sum(value.(model[:P_sub])[t, :]) for t in time] * BASE_POWER * DELTA_T/60, label=L"E_{S,tot}", linewidth=1.5, color=colors[1])
+    Plots.plot!(fig, time, [sum(P_consumed[t, :]) * BASE_POWER * DELTA_T/60 for t in time], label=L"E_{D,tot}", linewidth=1.5, color=colors[3])
+    Plots.plot!(fig, time, [sum(value.(model[:p_pv])[:, t]) * BASE_POWER * DELTA_T/60 for t in time], label=L"e_{PV,tot}", linewidth=1.5, color=colors[5])
+    Plots.plot!(fig, time, total_losses_per_t_MWh, label=L"E_{L,tot}", linewidth=1.5, color=colors[7])
+    # plot!(fig, time, [sum(value.(model[:p_pv])[t, :]) * BASE_POWER for t in time] .+ [sum(value.(model[:P_sub])[t, :]) for t in time] * BASE_POWER .- total_losses, label="p_pv + P_sub - losses[MW]")
+    
+    #pgfplot && Plots.savefig(fig, joinpath(dir, "$current_filename.tikz"))
+    Plots.savefig(fig, joinpath(dir, "$current_filename.pdf"))
+
+    # Plot storage
+    if model[:storage]
+        for i in 1:Nu
+            current_filename = filename * "storage_bus_$(Ns + i)"
+            #pgfplot && Plots.pgfplotsx()
+            fig = Plots.plot(xlabel="Time Steps", ylabel="Power [MW]", tex_output_standalone = false, legend = :best, linewidth=1.5, tickfontsize=10,formatter=:latex)
+
+            Plots.plot!(fig, time, value.(model[:p_storage])[:, i], label=L"p_{st}", linewidth=1.5, color=colors[1])
+
+            Plots.plot!(fig, time, value.(model[:storage_state])[:, i], label=L"SOC", color=colors[3])
+
+            Plots.hline!(fig, [value(model[:storage_capacity][i])], label=L"p_{st,capa}", color=colors[5],linestyle=:dash)
+            summer_check = round.([value(model[:storage_state][1, i]) value(model[:storage_state][24, i])+ value(model[:p_storage][1, i])* buses[Ns+i].storage.efficiency], sigdigits=2)
+            winter_check = round.([value(model[:storage_state][25, i]) value(model[:storage_state][48, i])+value(model[:p_storage][25, i])* p.STORAGE_EFF], sigdigits=2)
+            Plots.annotate!(12, 0.9 * value(model[:storage_capacity][i]), "$(summer_check[1]) ?= $(summer_check[2])")
+            Plots.annotate!(36, 0.9 * value(model[:storage_capacity][i]), "$(winter_check[1]) ?= $(winter_check[2])")
+            # ramping_max : fraction of the battery (dis)charged on 1 hour
+            ramping_max=round(maximum(abs.(diff([value.(model[:storage_state][1:24, i]) value.(model[:storage_state][25:48, i])], dims=2))), sigdigits=2)
+            Plots.annotate!(24, 0.7 * value(model[:storage_capacity][i]), "Ramping max $(ramping_max)/h")
+            #pgfplot && Plots.savefig(fig, joinpath(dir, "$current_filename.tikz"))
+            Plots.savefig(fig, joinpath(dir, "$current_filename.pdf"))
+        end
+    end
 end
- 
-
-#     # Display the power for each conductor
-#     for l in p.L
-#         plt = Plots.plot()
-#         chosen_cond_index = findfirst(i -> isapprox(i, 1; rtol=1e-4), value.(model[:Alpha])[l, :])
-#         title = isnothing(chosen_cond_index) ? "Line $l is not built" : "Line $l is built with conductor $chosen_cond_index"
-#         for k in p.K
-#             plot!(plt, p.T, sqrt.(if_small(value.(model[:I_sqr_k])[l, k, :])) * p.BASE_CURRENT, label="I_ij_$k [kA]", title=title)
-#         end
-#         plot!(plt, p.T, sum(sqrt.(if_small(value.(model[:I_sqr_k])[l, :, :])) * p.BASE_CURRENT, dims=1)', label="I_ij [kA]")
-#         display(plt)
-#     end
-
-
-#     # Check voltage limits
-#     for i in p.N
-#         plt = Plots.plot()
-#         plot!(p.T, sqrt.(value.(model[:V_sqr])[i, :]), label="V [p.u.]", title="Bus $(i)")
-#         plot!(plt, p.T, p.MIN_VOLTAGE * ones(p.T_SIZE), label="MIN_VOLTAGE [p.u.]")
-#         plot!(plt, p.T, p.MAX_VOLTAGE * ones(p.T_SIZE), label="MAX_VOLTAGE [p.u.]")
-#         display(plt)
-#     end
-
-#     for i in p.NS
-#         plt = Plots.plot()
-#         plot!(p.T, value.(model[:P_sub])[i, :], label="P_sub", title="Bus $(i)")
-#         display(plt)
-#     end
-
-#     # Compute total losses per time step: 
-#     total_losses = [sum(p.R[:, :] .* value.(model[:I_sqr_k])[:, :, t] .* p.BASE_POWER) for t in p.T]
-#     # Check P_sub, Q_sub
-#     plt = Plots.plot()
-#     plot!(p.T, [sum(value.(model[:P_sub])[:, t]) for t in p.T] * p.BASE_POWER, label="P_sub [MW]")
-#     plot!(plt, p.T, [sum(p.P_CONSUMPTION[:, t]) * p.BASE_POWER for t in p.T], label="Total P_CONSUMPTION [MW]")
-#     plot!(plt, p.T, [sum(value.(model[:p_pv])[:, t]) * p.BASE_POWER for t in p.T], label="Total p_pv [MW]")
-#     plot!(plt, p.T, total_losses, label="Total Joule Losses [MW]")
-#     plot!(plt, p.T, [sum(value.(model[:p_pv])[:, t]) * p.BASE_POWER for t in p.T] .+ [sum(value.(model[:P_sub])[:, t]) for t in p.T] * p.BASE_POWER .- total_losses, label="p_pv + P_sub - losses[MW]")
-#     display(plt)
-# end
-
-# function plot_storage(p, model)
-#     # Plot storage power transfers
-#     for i in p.NU
-#         plt = Plots.plot(legend=:bottomleft)
-#         plot!(p.T, value.(model[:p_storage])[i, :], label="storage power [MW]", title="Bus $(i)")
-#         plot!(p.T, value.(model[:storage_state])[i, :], label="storage state [MWh]")
-#         hline!([value(model[:storage_capacity][i])], label="storage capacity [MWh]")
-#         summer_check = round.([value(model[:storage_state][i, 1]) value(model[:storage_state][i, 24])+value(model[:p_storage][i, 1])* p.STORAGE_EFF], sigdigits=2)
-#         winter_check = round.([value(model[:storage_state][i, 25]) value(model[:storage_state][i, 48])+value(model[:p_storage][i, 25])* p.STORAGE_EFF], sigdigits=2)
-#         annotate!(12, 0.9 * value(model[:storage_capacity][i]), "$(summer_check[1]) ?= $(summer_check[2])")
-#         annotate!(36, 0.9 * value(model[:storage_capacity][i]), "$(winter_check[1]) ?= $(winter_check[2])")
-#         # ramping_max : fraction of the battery (dis)charged on 1 hour
-#         ramping_max=round(maximum(abs.(diff([value.(model[:storage_state][i, 1:24]) value.(model[:storage_state][i, 25:48])], dims=1))), sigdigits=2)
-#         annotate!(24, 0.7 * value(model[:storage_capacity][i]), "Ramping max $(ramping_max)/h")
-#         display(plt)
-#     end
-end
-
 
 # -----------------------------------------------------------------------------
 #                                   KPIs

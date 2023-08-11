@@ -6,10 +6,11 @@ import Random
 import XLSX
 using JuMP, Gurobi, BilevelJuMP
 using Logging, Printf
-using Plots
+import Plots
 using Graphs, GraphRecipes
 using PrettyTables, Latexify, LaTeXStrings
-using PGFPlotsX, Statistics
+#using PGFPlotsX, 
+using Statistics
 
 
 export DSOCosts, UserCosts, Simulation, Formulation, build_model 

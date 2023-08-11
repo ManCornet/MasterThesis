@@ -33,7 +33,12 @@ function parse_commandline(;as_symbols::Bool=false)
         "--network_graph_name"
             help = "Name of the network graphs"
             arg_type = String
-            default = "network_time_step"
+            default = "network_simu"
+
+        "--plot_file_name"
+            help = "Name of the network graphs"
+            arg_type = String
+            default = "plot_simu"
 
         # ------- Choice of the model -------
         "--bilevel"
@@ -65,7 +70,7 @@ function parse_commandline(;as_symbols::Bool=false)
                                     dataset containing the load & PV profiles 
                     """
             arg_type = Int64
-            default = 720*2 # 1h per default
+            default = 60 # 1h per default
         
         "--PP"
             help = "Load peak power"
@@ -478,13 +483,12 @@ function main()
         dir = "/Users/manoncornet/Documents/University/TFE/Bilevel_DNEP/src/simulation_output/" 
         for t in 1:model[:time_steps]
             filename = (Dates.format(now(), "yyyy-mm-dd")) * "network_graph_time_step_$t"
-            filename = isfile(filename) ? filename * "/" : filename
             Bilevel.print_network_tikz(model[:network_data], t, 5, 5; 
             dir=dir, filename=parsed_args["network_graph_name"] * "_timestep_$t", reshape=true)
         end
 
         # -- DIFFERENT PLOTS RESULTING FROM A SIMULATION --
-
+        Bilevel.plot_results(model; dir=dir, filename=parsed_args["plot_file_name"], pgfplot=true)
     end
 
     # -- Run a simulation of the model --

@@ -207,7 +207,7 @@ function print_load_profiles(fig_name::String,
     label = EV ? (label * " + EV") : label 
     label = EHP ? (label * " + EHP") : label 
     Plots.plot!(fig, time_steps, sum(profiles, dims=2), label=label)
-    savefig(fig, fig_name)
+    Plots.savefig(fig, fig_name)
     return
 end
 
@@ -219,6 +219,6 @@ function print_PV_profiles( fig_name::String,
     time = vec(1:size(profiles)[1]) * delta_t
     label = vec(["PV installation of user $i" for i in id_profiles])
     fig = Plots.plot(time, profiles, label=hcat(id_profiles...), xlabel = L"Time[min.] ($\Delta t=%$(delta_t))$", ylabel="Power Production [%PeakPower]")
-    savefig(fig, fig_name)
+    Plots.savefig(fig, fig_name)
     return
 end

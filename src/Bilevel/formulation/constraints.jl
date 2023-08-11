@@ -653,7 +653,6 @@ function _add_LowerConstraints!(model::JuMP.AbstractModel)::Nothing
         storage_capacity = model[:storage_capacity]
         storage_state = model[:storage_state]
         p_storage = model[:p_storage]
-        [:User_costs].amortization_storage
         NB_PROFILES = model[:nb_sign_days]
         STORAGE_EFF = [buses[i].storage.efficiency for i in Ns+1:N]
 
@@ -667,7 +666,7 @@ function _add_LowerConstraints!(model::JuMP.AbstractModel)::Nothing
         for season in 1:NB_PROFILES
             idx_first = Int((season - 1) * T / NB_PROFILES + 1)
             idx_last = Int(season * T  / NB_PROFILES)
-            @constraints(lower, begin
+            @constraints(model, begin
                 [t=idx_first+1:idx_last, i=1:Nu], storage_state[t, i] == storage_state[t-1, i] + p_storage[t, i] * STORAGE_EFF[i]
                 [i=1:Nu], storage_state[idx_first, i] == storage_state[idx_last, i] + p_storage[idx_first, i] * STORAGE_EFF[i]
             end)
