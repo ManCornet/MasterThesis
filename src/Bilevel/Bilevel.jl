@@ -11,11 +11,7 @@ using Graphs, GraphRecipes
 using PrettyTables, Latexify, LaTeXStrings
 #using PGFPlotsX, 
 using Statistics
-ENV["CPLEX_STUDIO_BINARIES"] = "/Applications/CPLEX_Studio221/cplex/bin/x86-64_osx/"
-import Pkg
-Pkg.add("CPLEX")
-Pkg.build("CPLEX")
-import CPLEX
+
 
 export DSOCosts, UserCosts, Simulation, Formulation, build_model 
 export get_nb_loads, get_nb_substations, get_nb_conductors
