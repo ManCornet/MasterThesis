@@ -473,10 +473,21 @@ function print_case_description(model::JuMP.AbstractModel)
     peak_sub_max = maximum(peak_sub_P) * BASE_POWER
     peak_sub_min = minimum(peak_sub_P) * BASE_POWER
 
+    # Number of variables
+    nb_int_vars = JuMP.MOI.get(model, Gurobi.ModelAttribute("NumIntVars"))
+
+    nb_bin_vars = JuMP.MOI.get(model, Gurobi.ModelAttribute("NumBinVars"))
+
+    nb_vars = JuMP.MOI.get(model, Gurobi.ModelAttribute("NumVars"))
+
+    nb_constraints = JuMP.MOI.get(model, Gurobi.ModelAttribute("NumConstrs"))
+
+    nb_Q_constraints = JuMP.MOI.get(model, Gurobi.ModelAttribute("NumQConstrs"))
+
     # Build table
     case_headers = (
-        ["Model", "Objective", "Gap", "Solve Time", "Time periods", "Energy consumed", "Peak Demand", "Peak sub max", "Peak sub min"], ["", "kEUR/year", "%", "sec.","", "MWh/year", "MW", "MW", "MW"])
-    case_params = sig_round([(bilevel ? "Bilevel" : "Single Level") objective_value(model) relative_gap(model)*100 solve_time(model) T energy_consumed peak_demand peak_sub_max peak_sub_min])
+        ["Model", "Objective", "Gap", "Solve Time", "Nb integer variables", "Nb binary variables", "Nb variables", "Nb constraints", "Nb Quadratic constraints", "Time periods", "Energy consumed", "Peak Demand", "Peak sub max", "Peak sub min"], ["", "kEUR/year", "%", "sec.", "" ,"","","","","", "MWh/year", "MW", "MW", "MW"])
+    case_params = sig_round([(bilevel ? "Bilevel" : "Single Level") objective_value(model) relative_gap(model)*100 solve_time(model) nb_int_vars nb_bin_vars nb_vars nb_constraints nb_Q_constraints T energy_consumed peak_demand peak_sub_max peak_sub_min])
     pretty_table(case_params, header=case_headers)
 
     # Returns the table as a Matrix

@@ -2,7 +2,7 @@
 function build_model(   simulation::Simulation;
                         TimeLimit::Float64 = 1200.0,
                         MIPGap::Float64 = 1e-2,
-                        MIPFocus::Int64 = 3, 
+                        MIPFocus::Int64 = 1, 
                         set_names::Bool = false,
                         bilevel_mode=BilevelJuMP.StrongDualityMode() # other option: BilevelJuMP.SOS1Mode()
                     )::Union{Nothing, JuMP.AbstractModel}
