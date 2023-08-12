@@ -45,6 +45,11 @@ function parse_commandline(;as_symbols::Bool=false)
             arg_type = String
             default = "simu"
 
+        "--radiality"
+            help = "Simulation name"
+            arg_type = String
+            default = "single_commodity"
+
         # ------- Choice of the model -------
         "--bilevel"
             help = """model = - bilevel if bilevel = true
@@ -243,6 +248,7 @@ function main()
 
     # ------- DSO parameters -------
     network_reconfig    = parsed_args["network_reconfig"]
+    radiality           = parsed_args["radiality"]
     substation_cost     = parsed_args["SUB_COST"]
     amort_DSO           = parsed_args["AMORT_DSO"]
     interest_rate_DSO   = parsed_args["IR_DSO"]
@@ -420,11 +426,19 @@ function main()
         topology_choice = Bilevel.OneConfig()
     end
 
+    if radiality == "single_commodity"
+        radiality_formulation = Bilevel.SingleCommodityFlow()
+    elseif radiality == "multi_commodity"
+        radiality_formulation = Bilevel.MultiCommodityFlow()
+    elseif radiality == "spanning_tree"
+        radiality_formulation = Bilevel.SpanningTree()
+    end
+
     formulation = Bilevel.Formulation(  
                                         powerflow = Bilevel.BFM(),
                                         topology_choice = topology_choice,
                                         graph_type = Bilevel.Undirected(),
-                                        radiality = Bilevel.MultiCommodityFlow(),
+                                        radiality = radiality_formulation,
                                         convexity = Bilevel.Convex(),
                                         v_constraints = Bilevel.StrongVoltages(),
                                         i_constraints = Bilevel.RelaxedCurrents()

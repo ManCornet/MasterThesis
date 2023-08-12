@@ -50,6 +50,7 @@
 #       All the parameters you want to test and their corresponding values
 #                      can be initialized here in a list !
 #
+import copy
 
 # Inclusion of EVs in load profiles
 EV = [False, True]
@@ -86,6 +87,8 @@ ref_config = [EV[0], HP[0], storage[0], Storage_cost[0], network_reconfig[0], bi
 # Used to make each cute line of our shell script
 iterator = [EV, HP, storage, Storage_cost, network_reconfig, bilevel, PV_CAPA, PVC, EIC, EEC, DSOEC, GCC, weight_I]
 
+radiality = ["single_commodity", "multi_commodity"]
+
 # ----------------------
 #    Script Properties
 # ----------------------
@@ -113,36 +116,40 @@ script_file.write("""#!/usr/bin/env bash
 # Going through all parameters defined previously (more can be added with other for loops)
 count = 0
 
-for i, variable in enumerate(iterator):
+for r in radiality:
+    #print(r)
 
-        # We skip storage by itself
-        if i == 2:
-                continue
-        
-        for v, value in enumerate(variable):
-                network_file_name = network_file + str(count)
-                plot_file_name    = plot_file + str(count)
-                simu_name = "simu_"+ str(count)
+    for i, variable in enumerate(iterator):
+            # We skip storage by itself
+            if i == 2:
+                    continue
+            
+            for v, value in enumerate(variable):
+                    network_file_name = network_file + str(count)
+                    plot_file_name    = plot_file + str(count)
+                    simu_name = "simu_"+ str(count)
 
-                # Current configuration
-                curr_conf = ref_config
+                    # Current configuration
+                    curr_conf = copy.deepcopy(ref_config)
 
-                # If we are change storage value, we change storage to true to take modification
-                if i == 3:
-                    curr_conf[2] = True
+                    # If we are change storage value, we change storage to true to take modification
+                    if i == 3:
+                        curr_conf[2] = True
 
-                # Applying modification
-                curr_conf[i] = value
+                    # Applying modification
+                    curr_conf[i] = value
+                    #print(curr_conf)
 
-                # Writting down new simulation test in command line in the script
-                terminal_command = f"""julia --project src/main_bilevel.jl --EV {str(curr_conf[0])} --EHP {str(curr_conf[1])} --storage {str(curr_conf[2])} --Storage_cost {str(curr_conf[3])} --network_reconfig {str(curr_conf[4])} --bilevel {str(curr_conf[5])} --PV_CAPA {str(curr_conf[6])} --PVC {str(curr_conf[7])} --EIC {str(curr_conf[8])} --EEC {str(curr_conf[9])} --DSOEC {str(curr_conf[10])} --GCC {str(curr_conf[11])} --weight_I {str(curr_conf[12])} --network_graph_name {network_file_name} --plot_file_name {plot_file_name} --simu_name {simu_name}\n"""
+                    # Writting down new simulation test in command line in the script
+                    terminal_command = f"""julia --project src/main_bilevel.jl --radiality {r} --EV {str(curr_conf[0])} --EHP {str(curr_conf[1])} --storage {str(curr_conf[2])} --Storage_cost {str(curr_conf[3])} --network_reconfig {str(curr_conf[4])} --bilevel {str(curr_conf[5])} --PV_CAPA {str(curr_conf[6])} --PVC {str(curr_conf[7])} --EIC {str(curr_conf[8])} --EEC {str(curr_conf[9])} --DSOEC {str(curr_conf[10])} --GCC {str(curr_conf[11])} --weight_I {str(curr_conf[12])} --network_graph_name {network_file_name} --plot_file_name {plot_file_name} --simu_name {simu_name}\n"""
 
-                # Checking for bitches
-                terminal_command = terminal_command.replace("True", "true")
-                terminal_command = terminal_command.replace("False", "false")
+                    # Checking for bitches
+                    terminal_command = terminal_command.replace("True", "true")
+                    terminal_command = terminal_command.replace("False", "false")
 
-                script_file.write(terminal_command)
-                count +=1 
+                    script_file.write(terminal_command)
+                    count +=1 
+
 
 # Closing the script
 script_file.close()

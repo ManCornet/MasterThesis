@@ -685,7 +685,7 @@ function print_pv_results(model; latex=false)
         for t in 1:T
             mean_user_self_sufficiency[u] += (value.(model[:p_pv])[t, u] * DELTA_T/60 - value.(model[:p_exp])[t, u] * DELTA_T/60)/(P_consumed[t, u] * DELTA_T/60) / (model[:nb_sign_days] * T)
 
-            if PV_prod[t, u] != 0
+            if PV_prod[t, u] * value(model[:p_pv_max][u]) != 0
                 mean_user_self_consumption[u] += (value.(model[:p_pv])[t, u] * DELTA_T/60 - value.(model[:p_exp])[t, u] * DELTA_T/60)/(value.(model[:p_pv])[t, u] * DELTA_T/60) / (model[:nb_sign_days])
 
                 mean_user_production_ratio[u] += (value.(model[:p_pv])[t, u] * DELTA_T/60)/(PV_prod[t, u] * value(model[:p_pv_max][u])* DELTA_T/60)/ (model[:nb_sign_days])
@@ -806,7 +806,7 @@ function print_summary(model; latex=false)
         for t in 1:T
             mean_user_self_sufficiency[u] += (value.(model[:p_pv])[t, u] * DELTA_T/60 - value.(model[:p_exp])[t, u] * DELTA_T/60)/(P_consumed[t, u] * DELTA_T/60) / (model[:nb_sign_days] * T)
 
-            if value.(model[:p_pv])[t, u] != 0
+            if PV_prod[t, u] * value(model[:p_pv_max][u]) != 0
                 mean_user_self_consumption[u] += (value.(model[:p_pv])[t, u] * DELTA_T/60 - value.(model[:p_exp])[t, u] * DELTA_T/60)/(value.(model[:p_pv])[t, u] * DELTA_T/60) / (model[:nb_sign_days])
                 nb_non_zeros += 1
             end

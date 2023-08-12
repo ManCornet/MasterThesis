@@ -159,7 +159,7 @@ function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::T
                         )
                         
     elseif isa(topology_choice, ReconfigAllowed)
-        println("hello")
+        #println("hello")
         JuMP.@variables(model,   
                     begin 
                         Alpha[1:L, 1:K], Bin
@@ -268,6 +268,23 @@ function _add_RadialityVariables!(model::JuMP.AbstractModel,topology_choice::Top
         JuMP.@variable(model, k_ij[1:L, 1:N])
     elseif isa(topology_choice, ReconfigAllowed)
         JuMP.@variable(model, k_ij[1:T, 1:L, 1:N])
+    end
+
+    return
+end
+
+function _add_RadialityVariables!(model::JuMP.AbstractModel,topology_choice::TopologyChoiceFormulation, ::SpanningTree)::Nothing 
+
+    network_data = model[:network_data]
+    T = model[:time_steps]
+    L = get_nb_lines(network_data)
+    N = get_nb_loads(network_data) + get_nb_substations(network_data)
+    if isa(topology_choice, OneConfig)
+        JuMP.@variable(model, z_ij[1:L, 1:N], binary=true, container=Array)
+        JuMP.@variable(model, z_ji[1:L, 1:N], binary=true, container=Array)
+    elseif isa(topology_choice, ReconfigAllowed)
+        JuMP.@variable(model, z_ij[1:T, 1:L, 1:N], binary=true, container=Array)
+        JuMP.@variable(model, z_ji[1:T, 1:L, 1:N], binary=true, container=Array)
     end
 
     return

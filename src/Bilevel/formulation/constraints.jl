@@ -176,11 +176,19 @@ function _add_CurrentOpConstraints!(model::JuMP.AbstractModel,
     cond_choice = isa(topology_choice, OneConfig) ? model[:Alpha] : model[:Gamma]
     I_sqr_k = model[:I_sqr_k]
     
-    JuMP.@constraint(model, 
-                    [t=1:T, l=1:L, k=1:K],
-                    I_sqr_k[t, l, k] <= conductors[k].max_i^2 * 
-                    cond_choice[compute_idx((l, k), t, topology_choice)...])
-
+    if isa(topology_choice, OneConfig)
+        Alpha = model[:Alpha]
+        JuMP.@constraint(model, 
+                        [t=1:T, l=1:L, k=1:K],
+                        I_sqr_k[t, l, k] <= conductors[k].max_i^2 * 
+                        Alpha[l, k])
+    else 
+        Gamma = model[:Gamma]
+        JuMP.@constraint(model, 
+                        [t=1:T, l=1:L, k=1:K],
+                        I_sqr_k[t, l, k] <= conductors[k].max_i^2 * 
+                        Gamma[t, l, k])
+    end
     return 
 end
 
@@ -207,11 +215,18 @@ function _add_CurrentOpConstraints!(model::JuMP.AbstractModel,
                     I_slack[t, l, k] <= conductors[k].max_i^2 * I_violation[t, l, k])
 
     I_sqr_k = model[:I_sqr_k]
-    JuMP.@constraint(model,
-                    [t=1:T, l=1:L, k=1:K],  
-                    I_sqr_k[t, l, k] - I_slack[t, l, k] <= conductors[k].max_i^2 * 
-                    cond_choice[compute_idx((l, k), t, topology_choice)...])
 
+    if isa(topology_choice, OneConfig)
+        Alpha = model[:Alpha]
+        JuMP.@constraint(model,
+                        [t=1:T, l=1:L, k=1:K],  
+                        I_sqr_k[t, l, k] - I_slack[t, l, k] <= conductors[k].max_i^2 * Alpha[l, k])
+    else
+        Gamma = model[:Gamma]
+        JuMP.@constraint(model,
+        [t=1:T, l=1:L, k=1:K],  
+        I_sqr_k[t, l, k] - I_slack[t, l, k] <= conductors[k].max_i^2 * Gamma[t, l, k])
+    end
     return 
 end
 
@@ -346,9 +361,9 @@ function _add_PowerBalanceConstraints!( model::JuMP.AbstractModel,
         Gamma = model[:Gamma]
         JuMP.@constraints(model, begin
             [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k] # indispensable
-            [t=1:T, l=1:L, k=1:K], P_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k]  # indispensable
+            [t=1:T, l=1:L, k=1:K], P_ji_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k]  # indispensable
             [t=1:T, l=1:L, k=1:K], Q_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k]  # indispensable
-            [t=1:T, l=1:L, k=1:K], Q_ij_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k]  # indispensable
+            [t=1:T, l=1:L, k=1:K], Q_ji_k[t, l, k] <= conductors[k].max_i * buses[lines[l].edge.from_node.id].V_limits.V_max * Gamma[t, l, k]  # indispensable
         end)
     end          
     return 
@@ -866,16 +881,12 @@ function _add_RadialityConstraints!(model::JuMP.AbstractModel,
 
 
     JuMP.@constraints(model, begin
-        [t=1:T, i=1:Ns, w=(Ns+1):N], - sum(k_ij[t, l, w] for l in Omega_receiving[i]) + 
-                    sum(k_ij[t, l, w] for l in Omega_sending[i]) >= 0
-        [t=1:T, i=1:Ns_init, w=(Ns+1):N], - sum(k_ij[t, l, w] for l in Omega_receiving[i]) +
-                        sum(k_ij[t, l, w] for l in Omega_sending[i]) <= 1
-        [t=1:T, i=(Ns_init+1):Ns, w=(Ns+1):N],  -  sum(k_ij[t, l, w] for l in Omega_receiving[i]) +
-                                sum(k_ij[t, l, w] for l in Omega_sending[i]) <= Beta[i]
+        [t=1:T, i=1:Ns, w=(Ns+1):N], - sum(k_ij[t, l, w] for l in Omega_receiving[i]) + sum(k_ij[t, l, w] for l in Omega_sending[i]) >= 0
+        [t=1:T, i=1:Ns_init, w=(Ns+1):N], - sum(k_ij[t, l, w] for l in Omega_receiving[i]) + sum(k_ij[t, l, w] for l in Omega_sending[i]) <= 1
+        [t=1:T, i=(Ns_init+1):Ns, w=(Ns+1):N],  -  sum(k_ij[t, l, w] for l in Omega_receiving[i]) + sum(k_ij[t, l, w] for l in Omega_sending[i]) <= Beta[i]
         [t=1:T, i=(Ns+1):N], - sum(k_ij[t, l, i] for l in Omega_receiving[i]) + 
             sum(k_ij[t, l, i] for l in Omega_sending[i]) == -1
-        [t=1:T, i=(Ns+1):N, w=(Ns+1):N; i != w], - sum(k_ij[t, l, w] for l in Omega_receiving[i]) +
-                                sum(k_ij[t, l, w] for l in Omega_sending[i]) == 0
+        [t=1:T, i=(Ns+1):N, w=(Ns+1):N; i != w], - sum(k_ij[t, l, w] for l in Omega_receiving[i]) + sum(k_ij[t, l, w] for l in Omega_sending[i]) == 0
     end)
 
 
@@ -893,6 +904,127 @@ function _add_RadialityConstraints!(model::JuMP.AbstractModel,
             [t=1:T, l=1:L, w=(Ns+1):N], k_ij[t, l, w] <= Y_send[t, l]
             [t=1:T, l=1:L, w=(Ns+1):N], k_ij[t, l, w] >= -Y_rec[t, l] 
         end)
+    end
+
+    return
+end
+
+
+function _add_RadialityConstraints!(model::JuMP.AbstractModel, 
+    graph_type::TypeOfGraph,
+    ::OneConfig,
+    ::SpanningTree)::Nothing
+
+    Omega_sending = model[:network_topology].sending_lines
+    Omega_receiving = model[:network_topology].receiving_lines
+    network = model[:network_data]
+    T = model[:time_steps]
+    L = network.nb_lines
+    Ns_init = network.nb_init_subs
+    Ns = network.nb_substations
+    Nu = network.nb_loads
+    N = Ns + Nu
+    Beta = model[:Beta]
+    z_ij = model[:z_ij]
+    z_ji = model[:z_ji]
+
+
+    for i in 1:N, w in 1:N
+        if i <= Ns_init
+            if i !== w 
+                JuMP.@constraint(model, + sum(z_ji[l, w] for l in Omega_receiving[i]) + sum(z_ij[l, w] for l in Omega_sending[i]) >= 0
+                )
+                JuMP.@constraint(model, + sum(z_ji[l, w] for l in Omega_receiving[i]) + sum(z_ij[l, w] for l in Omega_sending[i]) <= 1
+                )
+            end
+        elseif i > Ns_init && i <= Ns
+            if i !== w 
+                JuMP.@constraint(model,  + sum(z_ji[l, w] for l in Omega_receiving[i]) + sum(z_ij[l, w] for l in Omega_sending[i]) >= 0
+                )
+                JuMP.@constraint(model,  + sum(z_ji[l, w] for l in Omega_receiving[i]) + sum(z_ij[l, w] for l in Omega_sending[i]) <= Beta[i]
+                )
+            end
+        elseif i !== w 
+            JuMP.@constraint(model, + sum(z_ji[l, w] for l in Omega_receiving[i]) + sum(z_ij[l, w] for l in Omega_sending[i]) == 1
+            )
+        end    
+    end
+
+    JuMP.@constraint(model, [w=1:N],
+                + sum(z_ji[l, w] for l in Omega_receiving[w])
+                + sum(z_ij[l, w] for l in Omega_sending[w]) == 0
+    )
+   
+    if isa(graph_type, Undirected)
+        Y = model[:Y]
+        JuMP.@constraint(model, [l=1:L, w=1:N], 
+            Y[l] == z_ij[l, w] + z_ji[l, w])
+
+    elseif isa(graph_type, Directed)
+        Y_send = model[:Y_send]
+        Y_rec = model[:Y_rec]
+        JuMP.@constraint(model, [l=1:L, w=1:N], 
+            (Y_send[l] + Y_rec[l]) == z_ij[l, w] + z_ji[l, w])
+    end
+
+    return
+end
+
+function _add_RadialityConstraints!(model::JuMP.AbstractModel, 
+    graph_type::TypeOfGraph,
+    ::ReconfigAllowed,
+    ::SpanningTree)::Nothing
+
+    Omega_sending = model[:network_topology].sending_lines
+    Omega_receiving = model[:network_topology].receiving_lines
+    network = model[:network_data]
+    T = model[:time_steps]
+    L = network.nb_lines
+    Ns_init = network.nb_init_subs
+    Ns = network.nb_substations
+    Nu = network.nb_loads
+    N = Ns + Nu
+    Beta = model[:Beta]
+    z_ij = model[:z_ij]
+    z_ji = model[:z_ji]
+
+
+    for t in 1:T, i in 1:N, w in 1:N
+        if i <= Ns_init
+            if i !== w 
+                JuMP.@constraint(model, + sum(z_ji[t, l, w] for l in Omega_receiving[i]) + sum(z_ij[t, l, w] for l in Omega_sending[i]) >= 0
+                )
+                JuMP.@constraint(model, + sum(z_ji[t, l, w] for l in Omega_receiving[i]) + sum(z_ij[t, l, w] for l in Omega_sending[i]) <= 1
+                )
+            end
+        elseif i > Ns_init && i <= Ns
+            if i !== w 
+                JuMP.@constraint(model,  + sum(z_ji[t, l, w] for l in Omega_receiving[i]) + sum(z_ij[t, l, w] for l in Omega_sending[i]) >= 0
+                )
+                JuMP.@constraint(model,  + sum(z_ji[t, l, w] for l in Omega_receiving[i]) + sum(z_ij[t, l, w] for l in Omega_sending[i]) <= Beta[i]
+                )
+            end
+        elseif i !== w 
+            JuMP.@constraint(model, + sum(z_ji[t, l, w] for l in Omega_receiving[i]) + sum(z_ij[t, l, w] for l in Omega_sending[i]) == 1
+            )
+        end    
+    end
+
+    JuMP.@constraint(model, [t=1:T, w=1:N],
+                + sum(z_ji[t, l, w] for l in Omega_receiving[w])
+                + sum(z_ij[t, l, w] for l in Omega_sending[w]) == 0
+    )
+   
+    if isa(graph_type, Undirected)
+        Y = model[:Y]
+        JuMP.@constraint(model, [t=1:T, l=1:L, w=1:N], 
+            Y[t, l] == z_ij[t, l, w] + z_ji[t, l, w])
+
+    elseif isa(graph_type, Directed)
+        Y_send = model[:Y_send]
+        Y_rec = model[:Y_rec]
+        JuMP.@constraint(model, [t=1:T, l=1:L, w=1:N], 
+            (Y_send[t, l] + Y_rec[t, l]) == z_ij[t, l, w] + z_ji[t, l, w])
     end
 
     return
