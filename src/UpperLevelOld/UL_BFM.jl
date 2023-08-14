@@ -58,7 +58,7 @@ function UL_BFM_1P(network_dict::Dict, obj_dict::Dict; radiality::Integer=0, gen
 
     # ========================= Network parameters ========================
 
-    N, Omega_sending, Omega_receiving, MIN_VOLTAGE, MAX_VOLTAGE = network_dict[:bus]
+    N, Omega_sending, Omega_receiving, MIN_VOLTAGE, MAX_VOLTAGE, _ , _ = network_dict[:bus]
     Ns, S_rating_init, S_rating_max = network_dict[:sub_bus]
     Nu, P_D, Q_D, delta_t = network_dict[:load_bus]
     L, line_ends, max_i, R, X, G, B = network_dict[:line]
@@ -90,7 +90,7 @@ function UL_BFM_1P(network_dict::Dict, obj_dict::Dict; radiality::Integer=0, gen
                 I_sqr[L]      >= 0                         , (container=Array)
                 P_G[N]                                     , (container=Array)
                 Q_G[N]                                     , (container=Array)
-                S_G[N] >= 0                                   , (container=Array)
+                S_G[N] >= 0                                , (container=Array)
                 P_ij_k[L, K]                               , (container=Array) 
                 Q_ij_k[L, K]                               , (container=Array)
                 P_ij[L]                                    , (container=Array)
@@ -120,8 +120,6 @@ function UL_BFM_1P(network_dict::Dict, obj_dict::Dict; radiality::Integer=0, gen
         @variable(model, x_span_ij[L, N], binary = true, container=Array)
     end
 
-
-
     for i in Nu
         fix(P_G[i], 0.0) 
         fix(Q_G[i], 0.0)
@@ -136,7 +134,7 @@ function UL_BFM_1P(network_dict::Dict, obj_dict::Dict; radiality::Integer=0, gen
                             + HOURS_PER_YEAR * f_l * line_loss_factor * loss_cost * delta_t
                                              * sum(R[l, k] * I_sqr_k[l, k] * BASE_POWER for l in L, k in K)
                             + HOURS_PER_YEAR * f_s * sub_loss_factor * sub_op_cost 
-                                             * sum((P_G[i]^2 + Q_G[i]^2) * (delta_t * BASE_POWER)^2 for i in Ns)
+                                             * sum((S_G[i]^2) * (delta_t * BASE_POWER)^2 for i in Ns)
                 )
 
     
@@ -228,9 +226,6 @@ function UL_BFM_1P(network_dict::Dict, obj_dict::Dict; radiality::Integer=0, gen
                 y_send[l] + y_rec[l] <= 1
     )
     
-    
-
-
 
     # CONSTRAINT (19)
     @constraint(model,
@@ -625,7 +620,7 @@ function UL_BFM_1P(network_dict::Dict, obj_dict::Dict; radiality::Integer=0, gen
             var_sets["z_ji"] = ["line", "node"]
         end
 
-        return objective_value(model), var_values, var_sets, solve_time(model) 
+        return model 
 
     elseif termination_status(model) == DUAL_INFEASIBLE
         println("problem unbounded")
@@ -641,7 +636,7 @@ function UL_BFM_2P(network_dict::Dict, obj_dict::Dict)
 
     # ========================= Network parameters ========================
 
-    N, Omega_sending, Omega_receiving, MIN_VOLTAGE, MAX_VOLTAGE = network_dict[:bus]
+    N, Omega_sending, Omega_receiving, MIN_VOLTAGE, MAX_VOLTAGE, _ , _ = network_dict[:bus]
     Ns, S_rating_init, S_rating_max = network_dict[:sub_bus]
     Nu, P_D, Q_D, delta_t = network_dict[:load_bus]
     L, line_ends, max_i, R, X, G, B = network_dict[:line]
@@ -673,7 +668,7 @@ function UL_BFM_2P(network_dict::Dict, obj_dict::Dict)
                 I_sqr[L]      >= 0                         , (container=Array)
                 P_G[N] >= 0                                , (container=Array)
                 Q_G[N]                                     , (container=Array)
-                S_G[N]                                     , (container=Array)
+                S_G[N] >=0                                    , (container=Array)
                 P_ij_k[L, K]                               , (container=Array) 
                 Q_ij_k[L, K]                               , (container=Array)
                 P_ji_k[L, K]                               , (container=Array) 
@@ -742,14 +737,14 @@ function UL_BFM_2P(network_dict::Dict, obj_dict::Dict)
      @constraint(model, 
                 voltage_value1[l=L],
                 V_sqr[line_ends[l][2]] - V_sqr[line_ends[l][1]] 
-                <= - sum(2 * (R[l, k] * P_ij_k[l, k] + X[l, k] * Q_ij_k[l, k]) 
+                <= sum(-2 * (R[l, k] * P_ij_k[l, k] + X[l, k] * Q_ij_k[l, k]) 
                 + (R[l, k]^2 + X[l, k]^2) * I_sqr_k[l, k] for k in K) 
                 + M * (1 - x[l])
             )
     @constraint(model, 
                 voltage_value2[l=L],
                 V_sqr[line_ends[l][2]] - V_sqr[line_ends[l][1]] 
-                >= - sum(2 * (R[l, k] * P_ij_k[l, k] + X[l, k] * Q_ij_k[l, k]) 
+                >= sum(-2 * (R[l, k] * P_ij_k[l, k] + X[l, k] * Q_ij_k[l, k]) 
                 + (R[l, k]^2 + X[l, k]^2) * I_sqr_k[l, k] for k in K) 
                 - M * (1 - x[l])
         )
@@ -950,10 +945,10 @@ function UL_BFM_2P(network_dict::Dict, obj_dict::Dict)
     # ========================= Additional Constraints ========================
 
     # CONSTRAINT : ADD GENERATION EVERYWHERE
-    @constraint(model, 
-                generation[i=Nu], 
-                P_G[i] <= 0.1
-    )
+    # @constraint(model, 
+                #             generation[i=Nu], 
+                #             P_G[i] <= 0.1
+    # )
    
     # LOAD OVER-SATISFACTION
     @constraint(model, 
@@ -1017,7 +1012,7 @@ function UL_BFM_2P(network_dict::Dict, obj_dict::Dict)
                         "beta"      => ["node"]
                         )
 
-        return objective_value(model), var_values, var_sets, solve_time(model) 
+        return model 
 
     elseif termination_status(model) == DUAL_INFEASIBLE
         println("problem unbounded")

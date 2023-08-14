@@ -148,6 +148,14 @@ function _update_buses!(model::JuMP.AbstractModel)
     return
 end
 
+function if_small(x)
+    for (i, a) in enumerate(x)
+        if abs(a) < 1e-8
+            x[i] = 0
+        end
+    end
+    return x #round.(x, digits=6)
+end
 
 function _update_lines!(model::JuMP.AbstractModel, power_flow::PowerFlowFormulation)
 
@@ -169,7 +177,7 @@ function _update_lines!(model::JuMP.AbstractModel, power_flow::PowerFlowFormulat
             l.cost = l.conductor.cost * l.length
 
             # update the current field
-            l.I_magn = sqrt.(vec(JuMP.value.(sum(model[:I_sqr_k][:, i, :], dims=2))))
+            l.I_magn = sqrt.(if_small(vec(JuMP.value.(sum(model[:I_sqr_k][:, i, :], dims=2)))))
 
             # Update the power field + direction of power flow : 1 if from_node 
             # Change edge struct also (normalement ça va se changer aussi dans network_topology)

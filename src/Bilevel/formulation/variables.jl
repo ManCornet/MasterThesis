@@ -61,8 +61,6 @@ function _add_BusVariables!(model::JuMP.AbstractModel)::Nothing
             storage_costs[1:Nu] >= 0           # Costs related to storage investment for each user
             end)
     end
-
-
     return
 end
 
@@ -76,7 +74,6 @@ function _add_BranchVariables!(model::JuMP.AbstractModel, ::BIM)::Nothing
     L = get_nb_lines(network_data)
     K = get_nb_conductors(network_data)
     N = get_nb_buses(network_data)
-
 
     JuMP.@variables(model,   
                     begin 
@@ -133,7 +130,6 @@ end
 #                          Conductor choice variables                          #
 # ---------------------------------------------------------------------------- #
 
-
 function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::TopologyChoiceFormulation, ::Undirected)
 
     T = model[:time_steps]
@@ -141,7 +137,6 @@ function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::T
     L = get_nb_lines(network_data)
     K = get_nb_conductors(network_data)
     Nu = get_nb_loads(network_data)
-    
     
     if isa(topology_choice, OneConfig) 
         JuMP.@variables(model,   
@@ -226,7 +221,6 @@ function _add_CondChoiceVariables!(model::JuMP.AbstractModel, topology_choice::T
                             end
                         )
     end
-   
     return
 end
 
@@ -254,7 +248,6 @@ function _add_RadialityVariables!(model::JuMP.AbstractModel, topology_choice::To
     elseif isa(topology_choice, ReconfigAllowed)
         JuMP.@variable(model, k_ij[1:T, 1:L])
     end
-
     return
 end
 
@@ -269,7 +262,6 @@ function _add_RadialityVariables!(model::JuMP.AbstractModel,topology_choice::Top
     elseif isa(topology_choice, ReconfigAllowed)
         JuMP.@variable(model, k_ij[1:T, 1:L, 1:N])
     end
-
     return
 end
 
@@ -283,10 +275,9 @@ function _add_RadialityVariables!(model::JuMP.AbstractModel,topology_choice::Top
         JuMP.@variable(model, z_ij[1:L, 1:N], binary=true, container=Array)
         JuMP.@variable(model, z_ji[1:L, 1:N], binary=true, container=Array)
     elseif isa(topology_choice, ReconfigAllowed)
-        JuMP.@variable(model, z_ij[1:T, 1:L, 1:N], binary=true, container=Array)
+        JuMP.@variable(model, z_ij[1:T, 1:L, 1:N], binary=true,container=Array)
         JuMP.@variable(model, z_ji[1:T, 1:L, 1:N], binary=true, container=Array)
     end
-
     return
 end
 

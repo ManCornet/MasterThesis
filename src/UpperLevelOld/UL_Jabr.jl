@@ -28,7 +28,7 @@ function UL_Jabr(network_dict::Dict, obj_dict::Dict)
 
     # ========================= Network parameters ========================
 
-    N, Omega_sending, Omega_receiving, MIN_VOLTAGE, MAX_VOLTAGE = network_dict[:bus]
+    N, Omega_sending, Omega_receiving, MIN_VOLTAGE, MAX_VOLTAGE, _ , _ = network_dict[:bus]
     Ns, S_rating_init, S_rating_max = network_dict[:sub_bus]
     Nu, P_D, Q_D, delta_t = network_dict[:load_bus]
     L, line_ends, max_i, R, X, G, B = network_dict[:line]
@@ -57,7 +57,7 @@ function UL_Jabr(network_dict::Dict, obj_dict::Dict)
     @variables( model,   
                 begin 
                 MIN_VOLTAGE^2 <= V_sqr[N] <= MAX_VOLTAGE^2, (container=Array)
-                I_sqr[L, K] >=0                            , (container=Array)
+                I_sqr[L, K]                               , (container=Array)
                 P_ij[L, K]                                , (container=Array)
                 P_ji[L, K]                                , (container=Array)
                 Q_ij[L, K]                                , (container=Array)
@@ -65,9 +65,9 @@ function UL_Jabr(network_dict::Dict, obj_dict::Dict)
                 X_i_ij[L, K, N]                           , (container=Array)
                 X_ij_re[L, K] >= 0                        , (container=Array)
                 X_ij_im[L, K]                             , (container=Array)
-                P_G[N]                                    , (container=Array)
+                P_G[N]                                     , (container=Array)
                 Q_G[N]                                    , (container=Array)
-                S_G[N] >= 0                                  , (container=Array)                          
+                S_G[N] >= 0                               , (container=Array)                          
                 alpha[L, K]                               , (container=Array, binary=true)
                 beta[Ns]                                  , (container=Array, binary=true)
                 x[L]                                      , (container=Array, binary=true)
@@ -100,7 +100,7 @@ function UL_Jabr(network_dict::Dict, obj_dict::Dict)
                                               * sum((P_G[i] - P_D[i]) * BASE_POWER for i in N) 
                             + HOURS_PER_YEAR * (1 + tau_s) 
                                               * sub_loss_factor * sum(sub_op_cost
-                                              * (P_G[i]^2 + Q_G[i]^2) * (delta_t * BASE_POWER)^2 for i in Ns)
+                                              * (S_G[i]^2) * (delta_t * BASE_POWER)^2 for i in Ns)
                     )
 
     # CONSTRAINT (2) -> In definition of alpha
@@ -283,7 +283,7 @@ function UL_Jabr(network_dict::Dict, obj_dict::Dict)
                         "x"         => ["line"]
                         )
 
-        return objective_value(model), var_values, var_sets, solve_time(model) 
+        return model 
 
     elseif termination_status(model) == DUAL_INFEASIBLE
         println("problem unbounded")
@@ -291,4 +291,5 @@ function UL_Jabr(network_dict::Dict, obj_dict::Dict)
     elseif termination_status(model) == MOI.INFEASIBLE
         println("problem infeasible")
     end
+return
 end
