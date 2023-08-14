@@ -26,3 +26,14 @@ Manifest.toml
 .history/
 .vscode/
 JuliaSysimage.so
+
+# Text files
+*.aux
+*.log
+*.pdf
+*.tex
+*.zip
+
+# Just keep the zip with the simulations
+
+
