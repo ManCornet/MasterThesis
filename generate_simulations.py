@@ -87,7 +87,7 @@ ref_config = [EV[0], HP[0], storage[0], Storage_cost[0], network_reconfig[0], bi
 # Used to make each cute line of our shell script
 iterator = [EV, HP, storage, Storage_cost, network_reconfig, bilevel, PV_CAPA, PVC, EIC, EEC, DSOEC, GCC, weight_I]
 
-radiality = ["single_commodity", "multi_commodity"]
+radiality = ["spanning_tree"] #["single_commodity", "multi_commodity"]
 
 # ----------------------
 #    Script Properties
@@ -132,19 +132,21 @@ for r in radiality:
                         if i == 3:
                                 curr_conf[2] = True
 
-                        # Applying modification
-                        curr_conf[i] = value
-                        #print(curr_conf)
 
-                        # Writting down new simulation test in command line in the script
-                        terminal_command = f"""julia --project src/main_bilevel.jl --radiality {r} --EV {str(curr_conf[0])} --EHP {str(curr_conf[1])} --storage {str(curr_conf[2])} --Storage_cost {str(curr_conf[3])} --network_reconfig {str(curr_conf[4])} --bilevel {str(curr_conf[5])} --PV_CAPA {str(curr_conf[6])} --PVC {str(curr_conf[7])} --EIC {str(curr_conf[8])} --EEC {str(curr_conf[9])} --DSOEC {str(curr_conf[10])} --GCC {str(curr_conf[11])} --weight_I {str(curr_conf[12])} --network_graph_name {network_file_name} --plot_file_name {plot_file_name} --simu_name {simu_name}\n"""
+                        if (count > 0 and value != ref_config[i]) or count == 0:
+                                # Applying modification
+                                curr_conf[i] = value
+                                #print(curr_conf)
 
-                        # Checking for bitches
-                        terminal_command = terminal_command.replace("True", "true")
-                        terminal_command = terminal_command.replace("False", "false")
+                                # Writting down new simulation test in command line in the script
+                                terminal_command = f"""julia --project src/main_bilevel.jl --radiality {r} --EV {str(curr_conf[0])} --EHP {str(curr_conf[1])} --storage {str(curr_conf[2])} --Storage_cost {str(curr_conf[3])} --network_reconfig {str(curr_conf[4])} --bilevel {str(curr_conf[5])} --PV_CAPA {str(curr_conf[6])} --PVC {str(curr_conf[7])} --EIC {str(curr_conf[8])} --EEC {str(curr_conf[9])} --DSOEC {str(curr_conf[10])} --GCC {str(curr_conf[11])} --weight_I {str(curr_conf[12])} --network_graph_name {network_file_name} --plot_file_name {plot_file_name} --simu_name {simu_name}\n"""
 
-                        script_file.write(terminal_command)
-                        count +=1 
+                                # Checking for bitches
+                                terminal_command = terminal_command.replace("True", "true")
+                                terminal_command = terminal_command.replace("False", "false")
+
+                                script_file.write(terminal_command)
+                                count +=1 
 
 
 # Closing the script
