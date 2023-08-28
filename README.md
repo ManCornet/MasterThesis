@@ -6,7 +6,7 @@
  <b style="font-size:25vw; font-weight:bold;">
  Exploring the impact of the energy transition on electricity distribution systems: 
  </b><br>
- <b style="font-size:15vw;"> <i>The beginning of a journey in search of equilibrium in the game between the network operator and its users </i>
+ <b style="font-size:15vw;"> The beginning of a journey in search of equilibrium in the game between the network operator and its users
  </b>
  <hr style="color:#096F7B;">
 
