@@ -686,7 +686,7 @@ function _add_LowerConstraints!(model::JuMP.AbstractModel)::Nothing
                 [t=idx_first+1:idx_last, i=1:Nu], storage_state[t, i] == storage_state[t-1, i] + (p_storage_charge[t, i] * STORAGE_EFF[i] - (1/(STORAGE_EFF[i]- 0.05)) * p_storage_discharge[t, i]) * DELTA_T/60
                 # Boundary effects
                 [i=1:Nu], storage_state[idx_first, i] == 0.1*storage_capacity[i]
-                [i=1:Nu], storage_state[idx_first, i] == storage_state[idx_last, i] + (p_storage_charge[idx_first, i] * STORAGE_EFF[i] - (1/(STORAGE_EFF[i]- 0.05)) * p_storage_discharge[idx_first, i]) * DELTA_T/60
+                # [i=1:Nu], storage_state[idx_first, i] == storage_state[idx_last, i] + (p_storage_charge[idx_first, i] * STORAGE_EFF[i] - (1/(STORAGE_EFF[i]- 0.05)) * p_storage_discharge[idx_first, i]) * DELTA_T/60
             end)
         end
     else

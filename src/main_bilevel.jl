@@ -19,6 +19,15 @@ using .Bilevel
 using ArgParse, Dates
 using PrettyTables, XLSX, DataFrames
 
+"""
+    parse_commandline()
+
+Parse the command line arguments.
+
+# Arguments
+- `as_symbols::Bool`: parse the argument names as symbols if true, as strings 
+   otherwise.
+"""
 function parse_commandline(;as_symbols::Bool=false)
 
     s = ArgParseSettings()
@@ -208,7 +217,11 @@ end
 #                                Main function
 # =============================================================================
 
+"""
+    main()
 
+Main function for a Bilevel model simulation.
+"""
 function main()
 
     # ================= Parsing arguments of main command line ================
@@ -216,6 +229,7 @@ function main()
     param_keys   = collect(keys(parsed_args))
     param_values = collect(values(parsed_args))
 
+    # ------- Verbose in terminal -------
     verbose     = parsed_args["verbose"]
 
     # ------- Choice of the model -------
@@ -229,7 +243,7 @@ function main()
     EV          = parsed_args["EV"]
     EHP         = parsed_args["EHP"]
 
-    # ------- Users parameters -------
+    # ------- Users' parameters -------
     PV_pen        = parsed_args["PV_pen"]
     storage_pen   = parsed_args["Storage_pen"]
     storage_eff   = parsed_args["Storage_eff"]
@@ -240,13 +254,13 @@ function main()
     PV_conv_cost  = parsed_args["PVCC"]
     amort_PV_conv = parsed_args["AMORT_PV_CONV"]
     amort_PV      = parsed_args["AMORT_PV"]
-    EIC           = parsed_args["EIC"] #old 0.3
+    EIC           = parsed_args["EIC"]
     EEC           = parsed_args["EEC"]
     DSOEC         = parsed_args["DSOEC"]
     GCC           = parsed_args["GCC"]
     cos_phi       = 0.95
 
-    # ------- DSO parameters -------
+    # ------- DSO's parameters -------
     network_reconfig    = parsed_args["network_reconfig"]
     radiality           = parsed_args["radiality"]
     substation_cost     = parsed_args["SUB_COST"]
@@ -287,9 +301,8 @@ function main()
     pu_basis = define_pu_basis()
 
     # -- Fetching the network data --
-    network, network_topology = Bilevel.get_network_data(NETWORK_PATH; max_pv_capa=PV_capa, pu_basis=pu_basis, cos_phi=cos_phi)
-    #print_network_topology(network_topology)
-
+    network, network_topology = Bilevel.get_network_data(NETWORK_PATH; 
+                                                         max_pv_capa=PV_capa, pu_basis=pu_basis, cos_phi=cos_phi)
 
     # =========================== Load profiles  ==============================
 
@@ -337,11 +350,8 @@ function main()
 
     load_profiles, _ , _ = build_profiles(daily_profiles; scaling_factor=scaling_factor)
 
-
-
     # -- Add load profiles to network structure -- 
     add_load_profiles!(network, load_profiles; delta_t=delta_t, pu_basis=pu_basis)
-    #save_struct(network, "network_data.json")
 
     # =========================== PV profiles  ==============================
 
@@ -497,9 +507,6 @@ function main()
     isfile(XLSX_PATH) ? mode = "rw" : mode = "w"
 
     XLSX.openxlsx(XLSX_PATH, mode = mode) do xf
-        #mode == "rw" && XLSX.addsheet!(xf)
-        #sheet_names = XLSX.sheetnames(xf)
-        #current_sheet = sheet_names[end]
         sheet_names = XLSX.sheetnames(xf)
         current_sheet = sheet_names[1]
         current_working_sheet = xf[current_sheet]
@@ -532,23 +539,6 @@ function main()
 
         Bilevel.plot_results(model; dir=figures_path, filename=parsed_args["plot_file_name"], pgfplot=true)
     end
-
-    # -- Run a simulation of the model --
-    # 
-    # this call to the function automatically updates the structures 
-    #load_profiles = hcat([b.load_profile.time_serie for b in network.load_buses]...)
-    #print_load_profiles(joinpath( plot_dir, "test.pdf"), 
-    #                    base_load_profiles, 
-    #                    load_profiles;
-    #                    base_granularity=5, 
-    #                    delta_t=delta_t, 
-    #                    EV=EV, 
-    #                    EHP=EHP)
-
-    #PV_profiles = hcat([b.PV_installation.profile.time_serie for b in network.load_buses]...)
-    #print_PV_profiles(joinpath( plot_dir, "PV_profiles.pdf"), PV_profiles;
-    #                    delta_t=delta_t, id_profiles=ids_profiles[1])
-    # Test for PV profiles 
 end
 
 main()

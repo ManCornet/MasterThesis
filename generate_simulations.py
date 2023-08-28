@@ -10,9 +10,8 @@
 # -----------------
 #   Documentation
 # -----------------
-# Hey love !
 #
-# So, please don't rush and read carrefully these very few instructions (I know you :-)) :
+# Instructions to build a shell for simulations :
 #
 # 1 - Add a parser in your julia code and then, modify line 65 of the code to add all the
 #                           the new arguments your code can take !
@@ -30,7 +29,7 @@
 # -------------------- YOU ARE ALMOST THERE BUT DO NOT SKIP THIS IMPORTANT STEP --------------------
 #
 # 6 - Before running your script and generating all the good results, you must give the autorization
-#        to your script to be executed on your laptop ! This is simply achivee by typing in the
+#        to your script to be executed on your laptop ! This is simply achieved by typing in the
 #             terminal (while being in THE SAME LOCATION AS YOUR .SH FILE !):
 #
 #                             chmod 744 sensitivity_analysis_manon.sh
@@ -41,7 +40,7 @@
 #                                ./sensitivity_analysis_manon.sh
 #
 #
-# That's it ! <3
+# That's it ! :)
 #
 # --------------
 #   Parameters
@@ -66,6 +65,7 @@ bilevel = [True, False]
 
 # Maximum PV capacity per load bus [MVA]
 PV_CAPA = [0.4, 0.0, 0.8, 1.6]
+# Cost of PV installation [k€/MWp]
 PVC = [500, 300, 600]
 # Cost of the energy that is imported [k€/kWh]
 EIC = [0.3, 0.6, 0.9]
@@ -101,7 +101,7 @@ script_name = "sensitivity_analysis_manon"
 # Opening script
 script_file = open(f"{script_name}.sh", "w")
 
-# Adding good ass looking header
+# Adding good looking header
 script_file.write("""#!/usr/bin/env bash
 #------------------------------------------------------------------------------
 #
@@ -125,6 +125,7 @@ for r in radiality:
                         network_file_name = network_file + str(count)
                         plot_file_name    = plot_file + str(count)
                         simu_name = "simu_"+r+"_"+str(count)
+
                         # Current configuration
                         curr_conf = copy.deepcopy(ref_config)
 
@@ -136,18 +137,16 @@ for r in radiality:
                         if (count > 0 and value != ref_config[i]) or count == 0:
                                 # Applying modification
                                 curr_conf[i] = value
-                                #print(curr_conf)
 
                                 # Writting down new simulation test in command line in the script
                                 terminal_command = f"""julia --project src/main_bilevel.jl --radiality {r} --EV {str(curr_conf[0])} --EHP {str(curr_conf[1])} --storage {str(curr_conf[2])} --Storage_cost {str(curr_conf[3])} --network_reconfig {str(curr_conf[4])} --bilevel {str(curr_conf[5])} --PV_CAPA {str(curr_conf[6])} --PVC {str(curr_conf[7])} --EIC {str(curr_conf[8])} --EEC {str(curr_conf[9])} --DSOEC {str(curr_conf[10])} --GCC {str(curr_conf[11])} --weight_I {str(curr_conf[12])} --network_graph_name {network_file_name} --plot_file_name {plot_file_name} --simu_name {simu_name}\n"""
 
-                                # Checking for bitches
+                                # Converting booleans for julia
                                 terminal_command = terminal_command.replace("True", "true")
                                 terminal_command = terminal_command.replace("False", "false")
 
                                 script_file.write(terminal_command)
                                 count +=1 
-
 
 # Closing the script
 script_file.close()

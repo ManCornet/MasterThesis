@@ -8,8 +8,7 @@
 # Created Date: Wednesday May 24 2023
 #
 # structs:
-#   file containing the data structures that contain the data required to run 
-#   a simulation
+#   file with the definition of the data structures for the module
 #
 # ============================================================================#
 #                       Structures for physical parameters                    #
@@ -25,7 +24,7 @@ COORD = NamedTuple{(:x, :y), Tuple{Float64, Float64}}
 
     Description:
     ------------
-    Structure reprensenting a node in the graph of the network
+    Structure representing a node in the graph of the network
 
     Fields:
     -------
@@ -66,7 +65,7 @@ end
 
     Description:
     ------------
-    Structure reprensenting the topology of the network
+    Structure representing the topology of the network
 
     Fields:
     -------
@@ -75,7 +74,7 @@ end
 """ 
 mutable struct NetworkTopology
     nodes::Vector{Node}
-    edges::Vector{Edge} # contains the substation buses
+    edges::Vector{Edge}
     sending_lines::Dict{Int64, Vector{Int64}}
     receiving_lines::Dict{Int64, Vector{Int64}}
     function NetworkTopology(nodes::Vector{Node}, edges::Vector{Edge})
@@ -101,7 +100,7 @@ end
 
     Description:
     ------------
-    Structure reprensenting a time serie
+    Structure representing a time serie
 
     Fields:
     -------
@@ -118,9 +117,23 @@ end
 #-----------------------------------------------------------------------------#
 PQ_DIAGRAM = NamedTuple{(:max_q, :slope), Tuple{Float64, Float64}}
 
+""" PV: 
+
+    Description:
+    ------------
+    Structure representing a PV installation
+
+    Fields:
+    -------
+        - profile    : The corresponding PV profile forecast
+        - PQ diagram : the PQ diagram of the PV installation 
+        - capa       : the installed maximum peak capacity installed 
+        - P          : the active power generated at each time step of a simulation 
+        - Q          : the reactive power generated at each time step of a simulation
+""" 
 mutable struct PV 
     profile::Profile 
-    PQ_diagram::PQ_DIAGRAM    # max Q consumed/produced wrt P_peak
+    PQ_diagram::PQ_DIAGRAM 
     capa::Union{Nothing, Float64}
     P::Union{Nothing, Vector{Float64}} # in pu, always positive cause generation
     Q::Union{Nothing, Vector{Float64}} # in pu, can be positive or negative
@@ -132,12 +145,28 @@ mutable struct PV
 
 end
 
+
+""" Storage: 
+
+    Description:
+    ------------
+    Structure representing a storage unit
+
+    Fields:
+    -------
+        - efficiency : The charging (=discharging) efficiency of the storage unit
+        - capa       : the capacity of the storage unit, in MWh
+        - state      : the SOC of the storage unit at each time step of a simulation
+        - P_charge   : the charging power of the storage unit at each time step of a simulation
+        - P_discharge: the discharging power of the storage unit at each time step of 
+                       a simulation
+""" 
 mutable struct Storage 
     efficiency::Float64 
     capa::Union{Nothing, Float64}
     state::Union{Nothing, Vector{Float64}}
-    P_charge::Union{Nothing, Vector{Float64}} # in pu, always positive cause generation
-    P_discharge::Union{Nothing, Vector{Float64}} # in pu, always positive cause generation
+    P_charge::Union{Nothing, Vector{Float64}}       # in pu, always positive cause generation
+    P_discharge::Union{Nothing, Vector{Float64}}    # in pu, always positive cause generation
 
     function Storage(efficiency::Float64) 
         return new(efficiency, nothing, nothing, nothing) 
@@ -152,31 +181,67 @@ VLIM = NamedTuple{(:V_min, :V_max), Tuple{Float64, Float64}}
 
 abstract type Bus end
 
+""" User: 
+
+    Description:
+    ------------
+    Structure representing a bus to which is connected a grid user
+
+    Fields:
+    -------
+        - node            : the node of the network topology to which is connected this bus
+        - V_limits        : the voltage limits at that bus, in KV
+        - max_pv_capa     : the maximum PV potential at that bus, in MVA
+        - V_magn          : the voltage magnitude at that bus 
+        - load_profile    : the load profile foreact for that bus 
+        - PV_installation : the PV installation connected to that bus 
+        - storage         : the storage unit connected to that bus
+        - cos_phi         : the power factor at that bus
+""" 
 mutable struct User <: Bus
     node::Node
-    V_limits::Union{Nothing, VLIM}        #  in KV
-    max_pv_capa::Float64                  # in MVA
-    V_magn::Union{Nothing, Vector{Float64}}       #  in KV
+    V_limits::Union{Nothing, VLIM}           
+    max_pv_capa::Float64                     
+    V_magn::Union{Nothing, Vector{Float64}}  # in KV
     load_profile::Union{Nothing, Profile} 
-    PV_installation::Union{Nothing, PV}   # 
+    PV_installation::Union{Nothing, PV}   
     storage::Union{Nothing, Storage} 
-    cos_phi::Float64                # cos(phi)
+    cos_phi::Float64                         # cos(phi)
 
     function User(node::Node, V_limits::Union{Nothing, VLIM}, max_pv_capa::Float64, cos_phi::Float64) 
         return new(node, V_limits, max_pv_capa, nothing, nothing, nothing, nothing, cos_phi) 
     end
 end
 
-# Add to substation the fact that it can be built or not 
+""" Substation: 
+
+    Description:
+    ------------
+    Structure representing a bus to which is connected a substation
+
+    Fields:
+    -------
+        - node            : the node of the network topology to which is connected this bus
+        - built           : boolean indicating if a substation is built at that bus
+        - V_limits        : the voltage limits at that bus, in KV
+        - S_rating_max    : the maximum capacity of the substation that can be connected to 
+                            that bus, in MVA
+        - S_rating        : the capacity of the substation installed at that bus, in MVA 
+        - V_magn          : the voltage magnitude at that bus 
+        - P_sup           : the active power supplied by the substation 
+                            (>= 0 when supplied and < 0 when sent to the transmission network)
+        - Q_sup           : the reactive power supplied by the substation 
+                            (>= 0 when supplied and < 0 when sent to the transmission network)
+""" 
 mutable struct Substation <: Bus
     node::Node
     built::Bool
-    V_limits::Union{Nothing, VLIM}        # in kV
-    S_rating_max::Float64                 # in MVA
-    S_rating::Union{Nothing, Float64}     # in MVA
-    V_magn::Union{Nothing, Vector{Float64}}       # in kV 
-    P_sup::Union{Nothing, Vector{Float64}}        # in MVA 
-    Q_sup::Union{Nothing, Vector{Float64}}        # in MVA
+    V_limits::Union{Nothing, VLIM}           
+    S_rating_max::Float64               
+    S_rating::Union{Nothing, Float64}        
+    V_magn::Union{Nothing, Vector{Float64}}  
+    P_sup::Union{Nothing, Vector{Float64}}   
+    Q_sup::Union{Nothing, Vector{Float64}}   
   
     
     function Substation(node::Node, V_limits::Union{Nothing, VLIM}, S_rating_max::Float64, S_rating::Float64)
@@ -191,12 +256,26 @@ end
 #            Structures representing the electrical lines of the network      #
 #-----------------------------------------------------------------------------#
 
+""" Conductor: 
+
+    Description:
+    ------------
+    Structure representing a conductor 
+
+    Fields:
+    -------
+        - name : id of the conductor
+        - r    : resistance, in Ohm/km   
+        - x    : reactance, in Ohm/km  
+        - max_i: maximum current capacity, in kA
+        - cost : cost, in k€/km
+""" 
 struct Conductor 
     name::String            
-    r::Float64 # in Ohm/km
-    x::Float64 # in Ohm/km
-    max_i::Float64 # in kA
-    cost::Float64 # in k€/km
+    r::Float64         
+    x::Float64         
+    max_i::Float64      
+    cost::Float64       
     function Conductor( name::String, r::Float64, x::Float64, 
                         max_i::Float64, cost::Float64)
         if r < 0 || x < 0 || max_i < 0
@@ -208,17 +287,41 @@ struct Conductor
     end
 end
 
+""" Line: 
+
+    Description:
+    ------------
+    Structure representing an electrical line linking two buses 
+
+    Fields:
+    -------
+        - edge      : edge of the network topology corresponding to that line
+        - length    : length of the line, in km
+        - built     : boolean indicating if this line is built
+        - cost      : cost of the line, in k€
+        - conductor : if a line is built, this field indicates with which conductor
+        - I_magn    : magnitude of the current flowing through the line at each 
+                      time step of a simulation, in kA
+        - P_send    : active power at sending end of the line at each 
+                      time step of a simulation, in MW
+        - Q_send    : reactive power at sending end of the line at each 
+                      time step of a simulation, in MW
+        - P_rec     : active power at receiving end of the line at each 
+                      time step of a simulation, in MW
+        - Q_rec     : reactive power at receiving end of the line at each 
+                      time step of a simulation, in MW
+""" 
 mutable struct Line
     edge::Edge
-    length::Float64   # in km
+    length::Float64                           
     built::Bool
     cost::Union{Nothing, Float64}
-    conductor::Union{Nothing, Conductor}       # the conductor that was chosen
-    I_magn::Union{Nothing, Vector{Float64}}            # in kA the magnitude of the current 
-    P_send::Union{Nothing, Vector{Float64}}            # P flowing at sending end of the line
-    Q_send::Union{Nothing, Vector{Float64}}            # Q flowing at sending end of the line
-    P_rec::Union{Nothing, Vector{Float64}}            # P flowing at sending end of the line
-    Q_rec::Union{Nothing, Vector{Float64}}            # Q flowing at sending end of the line
+    conductor::Union{Nothing, Conductor}      
+    I_magn::Union{Nothing, Vector{Float64}}    
+    P_send::Union{Nothing, Vector{Float64}}    # P flowing at sending end of the line
+    Q_send::Union{Nothing, Vector{Float64}}    # Q flowing at sending end of the line
+    P_rec::Union{Nothing, Vector{Float64}}     # P flowing at sending end of the line
+    Q_rec::Union{Nothing, Vector{Float64}}     # Q flowing at sending end of the line
 
     function Line(edge::Edge, length::Float64) 
         if  length < 0 
@@ -230,29 +333,37 @@ mutable struct Line
 end
 
 
+
+
+
+#------------------------------------ 6. -------------------------------------#
+#              Structures representing the distribution network               #
+#-----------------------------------------------------------------------------#
 PU_BASIS = NamedTuple{(:base_power, :base_voltage, :base_current, :base_impedance), 
                         Tuple{Float64, Float64, Float64, Float64}} 
 
-
-#------------------------------------ 5. -------------------------------------#
-#              Structures representing the distribution network               #
-#-----------------------------------------------------------------------------#
 """ Network
+
+    Description:
+    ------------
+    Structure representing the whole network
 
     Fields:
     -------
-        - nb_lines : The number of lines in the network
-        - nb_buses : The number of buses in the network
-        - nb_subs  : The number of substations in the network
-        - lines    : The lines of the network 
-        - nodes    : The nodes of the network
-        - subs     : The substations of the network
+        - lines             : the electrical lines of the network 
+        - buses             : the electrical buses of the network
+        - conductors        : the choice of conductors to build a line
+        - nb_substations    : the number of substations in the network
+        - nb_init_subs      : the number of substations already built in the network
+        - nb_loads          : the number of grid users in the network 
+        - nb_lines          : the number of lines in the network 
+        - nb_conductors     : the number of conductors in the network 
+        - pu_basis          : the per unit basis for every physical quantities in the
+                              network      
 """
 mutable struct Network
     lines::Vector{Line}
     buses::Vector{Bus}
-    #sub_buses::Vector{Substation} # contains the substation buses
-    #load_buses::Vector{User} # contains the load buses
     conductors::Vector{Conductor}
     nb_substations::Int64 
     nb_init_subs::Int64 
@@ -262,17 +373,16 @@ mutable struct Network
     pu_basis::PU_BASIS
 end
 
-
-
-#------------------------------------ 6. -------------------------------------#
+#------------------------------------ 7. -------------------------------------#
 #              Structures representing the DSO costs                          #
 #-----------------------------------------------------------------------------#
+
 
 struct DSOCosts
     substation::Float64     # [kEUR/MVA]
     loss::Float64           # loss cost [€/kWh]
     amortization::Int64     # amortization period of DSO investements [years]
-    interest_rate::Float64    # interest rate DSO
+    interest_rate::Float64   # interest rate DSO
     WEIGHT_I::Float64       # cost to violate 
     WEIGHT_V::Float64
     money_basis::Float64    # money basis in k€
@@ -296,7 +406,7 @@ struct UserCosts
 end
 
 
-#------------------------------------ 6. -------------------------------------#
+#------------------------------------ 8. -------------------------------------#
 #                       Structures representing a simulation                  #
 #-----------------------------------------------------------------------------#
 struct Simulation 
@@ -326,7 +436,7 @@ struct Simulation
     end
 end
 
-#------------------------------------ 7. -------------------------------------#
+#------------------------------------ 9. -------------------------------------#
 #                         Additionnal functions                               #
 #-----------------------------------------------------------------------------#
 
@@ -374,6 +484,3 @@ function save_struct(data::Network, filename::String)
     JSON3.pretty(f, data)
     close(f)
 end
-
-
-

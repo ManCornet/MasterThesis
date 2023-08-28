@@ -1,3 +1,4 @@
+# -- Create a Julia sys image --
 using PackageCompiler
 import Pkg
 
